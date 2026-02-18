@@ -1,5 +1,5 @@
 # 🟣 Twitch Rust Drops Watcher
-#⚠️ DISCLAIMER [ CURRENTLY NOT WORKING ]
+⚠️ DISCLAIMER [ CURRENTLY NOT WORKING ]
 Automatically track and manage Twitch streamers eligible for Rust drops — opens eligible live streams in your browser, estimates remaining drop watch time, and rotates through streamers until all drops are complete.
 
 ---
@@ -47,6 +47,7 @@ This project is a personal automation tool designed to help users manage Twitch 
 - It simply automates the process of opening eligible Twitch streams based on public HTML content and estimated watch time.
 
 - Use of this tool is at your own risk. Be sure to comply with Twitch’s Terms of Service and Drops Program Guidelines.
+
 
 
 
