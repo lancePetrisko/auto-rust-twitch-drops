@@ -1,0 +1,8 @@
+Redesign this whole shiz make it more user friendly maybe with plain html.
+Have big green lettering and shiz to show online. Show progress of drop on one panel.
+Be able to adjust refresh times in a user config.
+
+Make a difference between a streamer being online and a streamer hosting someone.
+Because there is no difference currently between a streamer who is hosting someone or
+is live live
+
