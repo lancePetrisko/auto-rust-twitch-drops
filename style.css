@@ -1,0 +1,175 @@
+:root {
+    --bg: #0e0e10;
+    --panel: #1a1a1d;
+    --border: #2c2c30;
+    --text: #e8e8e8;
+    --muted: #8a8a8f;
+    --green: #2ecc71;
+    --yellow: #f1c40f;
+    --red: #55555a;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 2rem 1rem;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+h1 {
+    margin: 0 0 1rem 0;
+    font-size: 1.8rem;
+}
+
+.muted {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.py-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--green);
+    margin-bottom: 0.6rem;
+}
+
+.py-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+}
+
+.status {
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    padding: 1rem 1.5rem;
+    border-radius: 10px;
+    margin: 1rem 0;
+    text-align: center;
+}
+
+.status-online {
+    color: var(--green);
+    background: rgba(46, 204, 113, 0.1);
+    border: 2px solid var(--green);
+    text-shadow: 0 0 12px rgba(46, 204, 113, 0.6);
+}
+
+.status-offline {
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.03);
+    border: 2px solid var(--border);
+}
+
+.panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.panel h2 {
+    margin-top: 0;
+    font-size: 1.1rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    text-align: left;
+    padding: 0.5rem 0.4rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+}
+
+th {
+    color: var(--muted);
+    font-weight: 600;
+}
+
+a {
+    color: #9fd3ff;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+.badge {
+    display: inline-block;
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.badge-online {
+    background: rgba(46, 204, 113, 0.15);
+    color: var(--green);
+    border: 1px solid var(--green);
+}
+
+.badge-hosted {
+    background: rgba(241, 196, 15, 0.15);
+    color: var(--yellow);
+    border: 1px solid var(--yellow);
+}
+
+.badge-offline {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--muted);
+    border: 1px solid var(--border);
+}
+
+.progress-item {
+    margin-bottom: 0.9rem;
+}
+
+.progress-item.completed {
+    display: flex;
+    justify-content: space-between;
+    color: var(--green);
+    font-size: 0.9rem;
+}
+
+.progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    margin-bottom: 0.3rem;
+}
+
+.progress-bar {
+    background: var(--border);
+    border-radius: 999px;
+    height: 10px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    background: var(--green);
+    height: 100%;
+}

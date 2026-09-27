@@ -1,0 +1,5 @@
+{
+    "recheck_interval_minutes": 30,
+    "no_progress_wait_minutes": 15,
+    "page_refresh_seconds": 15
+}
