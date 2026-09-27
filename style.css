@@ -109,6 +109,14 @@ th {
     font-weight: 600;
 }
 
+tr.team-start td {
+    border-top: 2px solid var(--border);
+}
+
+tr.team-group {
+    background: rgba(46, 204, 113, 0.04);
+}
+
 a {
     color: #9fd3ff;
     text-decoration: none;
@@ -151,8 +159,54 @@ a:hover {
 .progress-item.completed {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     color: var(--green);
     font-size: 0.9rem;
+}
+
+.progress-item.claim-pending {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--yellow);
+    font-size: 0.9rem;
+    gap: 1rem;
+}
+
+.progress-item form {
+    margin: 0;
+}
+
+.done-cell {
+    text-align: center;
+}
+
+.done-cell form {
+    margin: 0;
+}
+
+.done-cell input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--green);
+    cursor: pointer;
+}
+
+.progress-item button {
+    background: var(--green);
+    color: #0e0e10;
+    border: none;
+    border-radius: 6px;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.progress-item button.undo {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
 }
 
 .progress-label {

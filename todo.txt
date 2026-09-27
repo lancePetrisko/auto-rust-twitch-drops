@@ -1,9 +1,3 @@
-Add a status on the html to show that the program is running on python
 
-Also we need to have a checklist once a drop is completed and claimed
-we can check off the list so we don't have the streamer on the main list to
-be watched
 
-Sort the streamers into the groups they stream in. Because they're all in teams
-and its not clear which one goes to what. You can reference that on this
-site https://twitch.facepunch.com/#get-started
+Ship it with a bat file for windows to open the shit automatically
