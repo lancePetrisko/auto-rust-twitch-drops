@@ -4,74 +4,20 @@
 
 Make the refresh buttons green instead of blue same with order btn
 
-Fix the "Refresh from Twitch" inventory checker - it doesn't actually
-detect claimed drops correctly yet
+DONE (needs a live test in Chrome): Twitch inventory now comes from the
+Chrome extension in extension/ instead of requests scraping.
+- inventory.js reads the rendered inventory page, background.js posts
+  it to POST /api/twitch-status (only chrome-extension:// origins).
+- Twitch names drops by item ("Rust Isles DB"), not streamer. In-progress
+  drops name the channel directly; claimed items are matched to facepunch
+  drop names in match_drop_type(). Bad matches get fixed with
+  twitch_item_map in config.json.
+- Still need a capture of a 100%-but-unclaimed card to confirm the
+  "claimable" detection (claim button) works.
 
-Why it's broken: checked inventory-example.html (saved copy of
-twitch.tv/drops/inventory) - it's just Twitch's empty pre-JS shell,
-<div id="root"> has nothing in it. No ScCardDropStatusText/
-ScCardDropCampaignTitleText anywhere, no embedded JSON state either.
-Twitch renders that page entirely client-side with React, so
-requests.get() + BeautifulSoup can never see the real content no
-matter what selectors we use. On top of that, drop-claim status is
-tied to your logged-in session, and requests.get() sends no auth
-cookies, so even server-rendered HTML would only show the logged-out
-page.
-
-Real fix needs either a headless browser (Playwright/Selenium)
-driven with a logged-in session, or Twitch's authenticated GraphQL
-API with a captured OAuth token/cookie. Plain requests scraping
-can't do it.
-
-Idea: build a browser extension instead - more invasive but can read
-the live logged-in DOM directly, no scraping/auth workaround needed.
-Also should fix the general laggy feel of the program.
-
-PLAN: hybrid extension, not a full rewrite
-Decided against rewriting the whole app as an extension - would
-throw out everything that already works (poll loop, dashboard,
-team/drop grouping, claim flow, logs page). facepunch scraping is
-fine as-is via requests. Only the Twitch inventory side is actually
-broken (JS-rendered SPA + needs your logged-in session), so build a
-small extension that fixes just that piece and bridges back to the
-existing Python server.
-
-1. New endpoint in autoRustDrops_v0.0.4.py: POST /api/twitch-status
-   - Accepts JSON body: {"completed": [...], "in_progress": {...},
-     "auto_claimed": [...]} - same shape get_completed_streamers()
-     already returns, so it can just replace that function's result
-     wherever it's consumed (run_poll_cycle, _handle_refresh_claimed).
-   - Store it in state the same way, same log_event() calls for
-     newly-claimed/newly-completed.
-   - Stop calling get_completed_streamers() from run_poll_cycle once
-     this is wired up - keep get_streamer_links() (facepunch) as-is.
-
-2. Extension - content script on twitch.tv/drops/inventory
-   - Runs in your real logged-in tab, reads the actual rendered DOM
-     (the ScCardDropStatusText/ScCardDropCampaignTitleText elements -
-     or whatever they're currently named, check live DOM since class
-     names can change) after Twitch's React app has rendered it.
-   - On an interval (or on DOM mutation via MutationObserver), build
-     the same {completed, in_progress, auto_claimed} shape and
-     fetch() POST it to http://127.0.0.1:8787/api/twitch-status.
-   - Needs host_permissions for http://127.0.0.1:8787/* and
-     https://www.twitch.tv/* in the manifest.
-
-3. Tab-close / offline signal (bonus, was the other ask)
-   - Content script on individual streamer pages (twitch.tv/<name>)
-     can use visibilitychange/pagehide to notice when you navigate
-     away or close the tab, and/or read Twitch's own live "OFFLINE"
-     indicator in the DOM - more reliable than our own offline-check
-     added to run_poll_cycle, could feed the same /api/twitch-status
-     endpoint (or a separate /api/streamer-status) so the dashboard
-     reacts faster than the facepunch recheck interval.
-
-4. Manifest v3 basics needed
-   - manifest.json (content_scripts matching twitch.tv, permissions)
-   - No background service worker strictly required if the content
-     script posts directly - keep it minimal, add one later only if
-     we need cross-tab state.
-
-Not started - scoping only. Should shrink the "why it's broken"
-section above once this replaces get_completed_streamers() and the
-old requests-based approach is fully retired.
+NEXT: tab-close / offline signal
+- Service worker: chrome.tabs.onRemoved / onUpdated for the watched
+  streamer's tab (more reliable than pagehide in a content script).
+- Content script on twitch.tv/<name> reads Twitch's live/offline badge.
+- Both post to a new POST /api/streamer-status; on "closed"/"offline"
+  for the watched streamer, clear watching and wake the poll loop.

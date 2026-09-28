@@ -4,6 +4,7 @@ import webbrowser
 import time
 import json
 import os
+import re
 import html
 import threading
 from collections import deque
@@ -30,7 +31,28 @@ DEFAULT_CONFIG = {
     "recheck_interval_minutes": 30,   # how long to wait before rechecking when no one is eligible/online
     "no_progress_wait_minutes": 15,   # how long to watch a streamer with no drop progress info yet
     "page_refresh_seconds": 15,       # how often the dashboard page reloads itself
+    "claimed_max_age_days": 21,       # Twitch claims older than this belong to past campaigns and are ignored
+    "twitch_item_map": {},            # manual fixes: {"Twitch item name": "facepunch drop name", or "" to ignore}
 }
+
+# Twitch shortens some item names on the inventory page ("Rust Isles DB")
+# compared to facepunch ("Double Barrel Shotgun") - these expand the short
+# forms so both sides tokenize to the same words before being compared.
+ITEM_TOKEN_ALIASES = {
+    "db": ["double", "barrel", "shotgun"],
+    "sar": ["semi", "automatic", "rifle"],
+    "ar": ["assault", "rifle"],
+    "sm": ["small"],
+    "lg": ["large"],
+    "wooden": ["wood"],
+}
+
+# Words too generic to identify a drop on their own ("Rustoria Med Box"
+# shouldn't match "Small Box" just because both are boxes)
+GENERIC_ITEM_TOKENS = {"box", "door", "rifle", "hat"}
+
+# Stale extension data gets flagged in the log after this long
+TWITCH_STALE_SECONDS = 15 * 60
 
 # Shared state between the polling loop (main thread) and the HTTP handler
 state_lock = threading.Lock()
@@ -43,6 +65,11 @@ state = {
     "streamers": [],
     "team_by_name": {},
     "members_by_team": {},
+    "drop_types": set(),
+    "twitch_payload": None,   # last raw inventory snapshot from the browser extension
+    "twitch_synced_at": 0,
+    "twitch_stale_logged": False,
+    "unmatched_logged": set(),
     "config": dict(DEFAULT_CONFIG),
     "session_claimed_count": 0,
     "log": deque(maxlen=LOG_HISTORY_LIMIT),
@@ -134,6 +161,7 @@ def get_streamer_links():
     streamer_cards = soup.select(".drop-box")
 
     streamers = []
+    drop_types = set()  # every drop on the page, including general ones with no streamer
     team_id = 0
     for card in streamer_cards:
         is_live_card = "is-live" in card.get("class", [])
@@ -146,6 +174,8 @@ def get_streamer_links():
 
         drop_type_tag = card.select_one(".drop-box-footer .drop-type")
         drop_type = drop_type_tag.text.strip() if drop_type_tag else ""
+        if drop_type:
+            drop_types.add(drop_type)
 
         image_tag = card.select_one(".drop-box-body img")
         drop_image = image_tag['src'] if image_tag and image_tag.has_attr('src') else ""
@@ -177,42 +207,138 @@ def get_streamer_links():
             streamers.append((name, link, status, team_id, drop_type, drop_image))
         team_id += 1
 
-    return streamers
+    return streamers, drop_types
 
-# Check if some drops are completed
-def get_completed_streamers():
-    url = 'https://www.twitch.tv/drops/inventory'
-    response = HTTP_SESSION.get(url, timeout=REQUEST_TIMEOUT)
-    soup = BeautifulSoup(response.text, 'html.parser')
+def _item_tokens(name):
+    tokens = set()
+    for word in re.findall(r"[a-z0-9]+", name.lower()):
+        tokens.update(ITEM_TOKEN_ALIASES.get(word, [word]))
+    return tokens
 
-    completed = set()      # 100% watched, still needs a manual claim confirm
-    auto_claimed = set()   # Twitch's own page already shows this as claimed/collected
-    in_progress = {}  # {streamer: ("45%", minutes_remaining)}
+# Picks the facepunch drop a Twitch item name refers to by shared words,
+# preferring the drop with the fewest extra words. Returns None when there's
+# no confident match (nothing specific shared, or a tie).
+def match_drop_type(item, drop_types, item_map):
+    if item in item_map:
+        return item_map[item] or None
 
-    default_minutes = 120  # 2 hours total
-
-    status_tags = soup.select(".ScCardDropStatusText")
-    for tag in status_tags:
-        parent = tag.find_parent("div", class_="ScCardDropCard")
-        if not parent:
+    item_tokens = _item_tokens(item)
+    best, best_score, tied = None, None, False
+    for drop_type in drop_types:
+        drop_tokens = _item_tokens(drop_type)
+        shared = item_tokens & drop_tokens
+        if not shared - GENERIC_ITEM_TOKENS:
             continue
-        streamer_tag = parent.select_one(".ScCardDropCampaignTitleText")
-        if not streamer_tag:
+        score = (len(shared), -len(drop_tokens - item_tokens))
+        if best_score is None or score > best_score:
+            best, best_score, tied = drop_type, score, False
+        elif score == best_score:
+            tied = True
+    return None if tied else best
+
+# Turns a relative Twitch time ("11 hours ago", "yesterday", "2 months ago")
+# into days. Returns None if it can't be read, so the item is kept.
+def _claimed_age_days(text):
+    text = text.lower()
+    if "yesterday" in text:
+        return 1
+    if re.search(r"\b(second|minute|hour)s?\b", text) or "today" in text:
+        return 0
+    m = re.search(r"\b(\d+|an?)\s+(day|week|month|year)s?\b", text)
+    if not m:
+        return None
+    count = 1 if m.group(1) in ("a", "an") else int(m.group(1))
+    return count * {"day": 1, "week": 7, "month": 30, "year": 365}[m.group(2)]
+
+# Maps the extension's raw inventory snapshot onto facepunch streamers.
+# In-progress drops name the channel directly; claimed ones only name the
+# item, so they're matched to a drop and mark that whole drop's streamers.
+def match_twitch_payload(payload, streamers, drop_types, config):
+    completed = set()      # 100% watched, still needs a claim on Twitch
+    auto_claimed = set()   # Twitch's inventory lists the reward as claimed
+    in_progress = {}       # {streamer: ("45%", minutes_remaining)}
+    unmatched = set()
+
+    members_by_drop = {}
+    name_by_login = {}
+    for name, link, _status, _team_id, drop_type, _image in streamers:
+        members_by_drop.setdefault(drop_type, set()).add(name)
+        name_by_login[link.rstrip("/").rsplit("/", 1)[-1].lower()] = name
+        name_by_login.setdefault(name.lower(), name)
+
+    def streamers_for(item):
+        drop_type = match_drop_type(item, drop_types, config["twitch_item_map"])
+        if drop_type is None:
+            unmatched.add(item)
+            return set()
+        return members_by_drop.get(drop_type, set())
+
+    for drop in payload.get("in_progress", []):
+        channel = drop.get("channel", "").lower()
+        names = {name_by_login[channel]} if channel in name_by_login else streamers_for(drop.get("item", ""))
+        percent = int(drop.get("percent", 0))
+        if percent >= 100 or drop.get("claimable"):
+            completed |= names
+        else:
+            total_minutes = drop.get("total_minutes") or 120
+            remaining = int(total_minutes * (100 - percent) / 100)
+            for name in names:
+                in_progress[name] = (f"{percent}%", remaining)
+
+    max_age = config["claimed_max_age_days"]
+    for drop in payload.get("claimed", []):
+        age = _claimed_age_days(drop.get("age", ""))
+        if age is not None and age > max_age:
             continue
+        auto_claimed |= streamers_for(drop.get("item", ""))
 
-        name = streamer_tag.text.strip()
-        title = tag.get("title", "").strip()
+    return completed, in_progress, auto_claimed, unmatched
 
-        if "claimed" in title.lower():
-            auto_claimed.add(name)
-        elif title == "Completed":
-            completed.add(name)
-        elif "%" in title:
-            percent = int(title.split("%")[0])
-            remaining = default_minutes * (100 - percent) / 100
-            in_progress[name] = (f"{percent}%", int(remaining))
+# Folds one matched Twitch snapshot into state and logs what changed.
+# Returns True if a drop newly completed or got claimed.
+def merge_twitch_status(completed, in_progress, auto_claimed, unmatched):
+    with state_lock:
+        newly_claimed = auto_claimed - state["claimed"]
+        if newly_claimed:
+            state["claimed"] |= newly_claimed
+            state["session_claimed_count"] += len(newly_claimed)
+            save_claimed(state["claimed"])
+        newly_completed = (completed - state["claimed"]) - state["completed"]
+        state["completed"] = set(completed)
+        state["in_progress"] = dict(in_progress)
+        # Non-Rust rewards (other games' drops) are expected not to match
+        new_unmatched = {i for i in unmatched if "rust" in i.lower()} - state["unmatched_logged"]
+        state["unmatched_logged"] |= new_unmatched
 
-    return completed, in_progress, auto_claimed
+    for name in sorted(newly_claimed):
+        log_event(f"Twitch inventory shows {name} as claimed")
+    for name in sorted(newly_completed):
+        log_event(f"{name}'s drop hit 100% — ready to claim")
+    for item in sorted(new_unmatched):
+        log_event(f"Couldn't match Twitch item '{item}' to a facepunch drop — add it to twitch_item_map in config.json")
+
+    return bool(newly_claimed or newly_completed)
+
+# Re-matches the last extension snapshot against current facepunch data and
+# re-renders. Used when a new snapshot arrives and by the Re-check button.
+def apply_twitch_payload():
+    with state_lock:
+        payload = state["twitch_payload"]
+        streamers = list(state["streamers"])
+        drop_types = set(state["drop_types"])
+        config = dict(state["config"])
+
+    if payload is None:
+        return False
+
+    completed, in_progress, auto_claimed, unmatched = match_twitch_payload(payload, streamers, drop_types, config)
+    changed = merge_twitch_status(completed, in_progress, auto_claimed, unmatched)
+
+    with state_lock:
+        claimed = set(state["claimed"])
+        watching = state["watching"]
+    render_dashboard(streamers, completed, in_progress, watching, claimed, config)
+    return changed
 
 # Tracks the last content actually written to dashboard.html, so unchanged
 # renders (e.g. nothing moved while paused) skip the disk write entirely
@@ -357,11 +483,20 @@ def render_dashboard(streamers, completed, in_progress, watching, claimed, confi
     updated = datetime.now().strftime("%I:%M:%S %p").lstrip("0")
 
     with state_lock:
+        synced_at = state["twitch_synced_at"]
+    if synced_at:
+        synced = datetime.fromtimestamp(synced_at).strftime("%I:%M %p").lstrip("0")
+        sync_html = f'<span class="py-dot"></span>Twitch synced {synced}'
+    else:
+        sync_html = '<span class="py-dot py-dot-off"></span>Extension not connected'
+
+    with state_lock:
         state["dashboard_fragments"] = {
             "status_html": status_html,
             "progress_html": progress_html,
             "claimed_html": claimed_html,
             "streamer_rows": streamer_rows,
+            "sync_html": sync_html,
             "updated": updated,
         }
 
@@ -369,7 +504,7 @@ def render_dashboard(streamers, completed, in_progress, watching, claimed, confi
     # differs from last time - live tabs get updates via /api/dashboard
     # instead, so a static (e.g. paused) state doesn't churn the disk.
     global _last_render_signature
-    signature = (status_html, progress_html, claimed_html, streamer_rows, refresh_seconds)
+    signature = (status_html, progress_html, claimed_html, streamer_rows, sync_html, refresh_seconds)
     if signature == _last_render_signature:
         return
     _last_render_signature = signature
@@ -387,6 +522,7 @@ def render_dashboard(streamers, completed, in_progress, watching, claimed, confi
     <div class="nav"><a href="/" class="active">Dashboard</a><a href="/logs.html">Logs</a></div>
     <div class="header-row">
         <div class="py-status"><span class="py-dot"></span>Python watcher running</div>
+        <div class="py-status" id="twitch-sync">{sync_html}</div>
         <a class="btn-open-twitch" href="https://www.twitch.tv/drops/inventory" target="_blank">Open Twitch Drops Inventory</a>
     </div>
     <div id="dashboard-status">{status_html}</div>
@@ -400,7 +536,7 @@ def render_dashboard(streamers, completed, in_progress, watching, claimed, confi
     <div class="panel">
         <div class="panel-header">
             <h2>Claimed</h2>
-            <form method="POST" action="/refresh-claimed"><button type="submit" class="btn-sort">Refresh from Twitch</button></form>
+            <form method="POST" action="/refresh-claimed"><button type="submit" class="btn-sort">Re-check Twitch</button></form>
         </div>
         <div id="claimed-content">{claimed_html}</div>
     </div>
@@ -549,6 +685,7 @@ async function refreshDashboard() {{
     patch("progress-content", data.progress_html);
     patch("claimed-content", data.claimed_html);
     patch("streamer-rows", data.streamer_rows);
+    patch("twitch-sync", data.sync_html);
 
     const updatedEl = document.getElementById("last-updated");
     if (updatedEl && data.updated !== undefined) updatedEl.textContent = data.updated;
@@ -639,6 +776,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._handle_control()
         elif self.path == "/refresh-claimed":
             self._handle_refresh_claimed()
+        elif self.path == "/api/twitch-status":
+            self._handle_twitch_status()
         else:
             self.send_response(404)
             self.end_headers()
@@ -681,38 +820,52 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _handle_refresh_claimed(self):
-        try:
-            completed, in_progress, auto_claimed = get_completed_streamers()
-            error = None
-        except Exception as e:
-            completed, in_progress, auto_claimed = set(), {}, set()
-            error = e
-
-        with state_lock:
-            newly = auto_claimed - state["claimed"]
-            if newly:
-                state["claimed"] |= newly
-                state["session_claimed_count"] += len(newly)
-                save_claimed(state["claimed"])
-            state["completed"] = set(completed)
-            state["in_progress"] = dict(in_progress)
-            streamers = list(state["streamers"])
-            config = dict(state["config"])
-            claimed = set(state["claimed"])
-            watching = state["watching"]
-
-        if error is not None:
-            log_event(f"ERROR refreshing claimed list from Twitch inventory: {error}")
-        elif newly:
-            for name in sorted(newly):
-                log_event(f"Twitch inventory shows {name} as claimed")
+        if apply_twitch_payload():
+            control_event.set()
         else:
-            log_event("Refreshed claimed list from Twitch inventory — no changes")
-
-        render_dashboard(streamers, completed, in_progress, watching, claimed, config)
+            with state_lock:
+                has_payload = state["twitch_payload"] is not None
+            if has_payload:
+                log_event("Re-checked Twitch inventory data — no changes")
+            else:
+                log_event("No data from the browser extension yet — open the Twitch Drops Inventory tab")
 
         self.send_response(303)
         self.send_header("Location", "/")
+        self.end_headers()
+
+    # Receives inventory snapshots from the browser extension. Browsers
+    # always attach an Origin header websites can't fake, so requiring a
+    # chrome-extension:// origin stops any open webpage from posting here.
+    def _handle_twitch_status(self):
+        if not self.headers.get("Origin", "").startswith("chrome-extension://"):
+            self.send_response(403)
+            self.end_headers()
+            return
+
+        length = int(self.headers.get("Content-Length", 0))
+        try:
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+        except ValueError:
+            self.send_response(400)
+            self.end_headers()
+            return
+
+        with state_lock:
+            first = state["twitch_payload"] is None
+            state["twitch_payload"] = payload
+            state["twitch_synced_at"] = time.time()
+            state["twitch_stale_logged"] = False
+
+        if first:
+            log_event("Browser extension connected — receiving Twitch drop inventory")
+
+        # Wake the poll loop so it can switch streams right away instead of
+        # waiting out its sleep (up to recheck_interval_minutes)
+        if apply_twitch_payload() or first:
+            control_event.set()
+
+        self.send_response(204)
         self.end_headers()
 
     def _handle_control(self):
@@ -761,16 +914,10 @@ def run_poll_cycle():
         config = load_config()
 
         try:
-            streamers = get_streamer_links()
+            streamers, drop_types = get_streamer_links()
         except Exception as e:
             log_event(f"ERROR fetching streamer data from facepunch: {e}")
-            streamers = []
-
-        try:
-            completed, in_progress, auto_claimed = get_completed_streamers()
-        except Exception as e:
-            log_event(f"ERROR fetching drop inventory from twitch: {e}")
-            completed, in_progress, auto_claimed = set(), {}, set()
+            streamers, drop_types = [], set()
 
         # Precomputed once per cycle so claim requests can do O(1) lookups
         # instead of scanning the full streamer list while holding the lock.
@@ -782,28 +929,29 @@ def run_poll_cycle():
             members_by_team.setdefault(team_id_, set()).add(name_)
 
         with state_lock:
-            newly_auto_claimed = auto_claimed - state["claimed"]
-            if newly_auto_claimed:
-                state["claimed"] |= newly_auto_claimed
-                state["session_claimed_count"] += len(newly_auto_claimed)
-                save_claimed(state["claimed"])
-            claimed = set(state["claimed"])
-            watching = state["watching"]
-            watch_until = state["watch_until"]
-            prev_completed = set(state["completed"])
-            state["completed"] = set(completed)
-            state["in_progress"] = dict(in_progress)
             state["streamers"] = list(streamers)
+            state["drop_types"] = set(drop_types)
             state["team_by_name"] = team_by_name
             state["members_by_team"] = members_by_team
             state["config"] = dict(config)
+            payload = state["twitch_payload"]
+            sync_age = time.time() - state["twitch_synced_at"]
+            stale_logged = state["twitch_stale_logged"]
+            if payload is not None and sync_age > TWITCH_STALE_SECONDS:
+                state["twitch_stale_logged"] = True
 
-        for name in sorted(newly_auto_claimed):
-            log_event(f"Twitch auto-claimed the drop for {name}")
+        if payload is None:
+            log_event("No Twitch inventory data yet — open the Twitch Drops Inventory tab with the browser extension installed")
+        elif sync_age > TWITCH_STALE_SECONDS and not stale_logged:
+            log_event(f"Twitch inventory data is {int(sync_age // 60)} min old — is the inventory tab still open?")
 
-        newly_completed = (completed - claimed) - prev_completed
-        for name in sorted(newly_completed):
-            log_event(f"{name}'s drop hit 100% — ready to claim")
+        completed, in_progress, auto_claimed, unmatched = match_twitch_payload(payload or {}, streamers, drop_types, config)
+        merge_twitch_status(completed, in_progress, auto_claimed, unmatched)
+
+        with state_lock:
+            claimed = set(state["claimed"])
+            watching = state["watching"]
+            watch_until = state["watch_until"]
 
         if watching:
             # They may have gone offline (or gotten claimed elsewhere) well
@@ -817,7 +965,9 @@ def run_poll_cycle():
                 log_event(f"Done watching {watching} — watch window elapsed")
                 watching = None
 
-        if not watching:
+        # Without inventory data every drop looks unclaimed, so hold off
+        # opening streams until the extension's first snapshot arrives.
+        if not watching and payload is not None:
             switched = False
             for name, link, status, _team_id, _drop_type, _drop_image in streamers:
                 if status == "ONLINE" and name not in completed and name not in claimed:

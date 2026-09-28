@@ -202,6 +202,12 @@ h1 {
     animation: py-dot-blink 1.4s ease-in-out infinite;
 }
 
+.py-dot-off {
+    background: var(--muted);
+    box-shadow: none;
+    animation: none;
+}
+
 @keyframes py-dot-blink {
     0%, 100% {
         opacity: 1;

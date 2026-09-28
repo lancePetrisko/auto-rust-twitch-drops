@@ -9,7 +9,7 @@ Automatically track and manage Twitch streamers eligible for Rust drops opens el
 
 - Scrapes [twitch.facepunch.com](https://twitch.facepunch.com) to find current Rust drop streamers
 - Detects which streamers are live, offline, or already completed
-- Pulls drop progress from your [Twitch inventory](https://www.twitch.tv/drops/inventory)
+- Pulls drop progress from your [Twitch inventory](https://www.twitch.tv/drops/inventory) via a small Chrome extension
 - Estimates remaining time based on percent complete (e.g., 45% = ~66 mins left)
 - Automatically opens streamers with uncompleted drops in your default browser
 - Automatically rotates to the next eligible streamer after a drop completes
@@ -34,6 +34,16 @@ pip install requests beautifulsoup4
 ```
 #### 🔹 3. Download and Run Python Script
 autoRustDrops_x.x.x.py
+
+#### 🔹 4. Install the Chrome extension
+Twitch only shows your drop progress to your logged-in browser, so a small extension reads it and sends it to the script.
+
+1. Open `chrome://extensions`
+2. Turn on **Developer mode** (top right)
+3. Click **Load unpacked** and pick the `extension` folder from this project
+4. Keep a tab open on https://www.twitch.tv/drops/inventory (the dashboard's "Open Twitch Drops Inventory" button opens it). The extension reloads it every 5 minutes to pick up new progress.
+
+The dashboard shows "Twitch synced" once data is arriving. Streams aren't opened until the first sync, so already-claimed drops aren't watched again.
 
 ---
 
