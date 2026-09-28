@@ -35,6 +35,8 @@ state = {
     "watch_until": 0,
     "completed": set(),
     "in_progress": {},
+    "streamers": [],
+    "config": dict(DEFAULT_CONFIG),
     "session_claimed_count": 0,
     "log": deque(maxlen=LOG_HISTORY_LIMIT),
     "run_state": "running",  # running | paused | stopped
@@ -154,6 +156,15 @@ def get_streamer_links():
 
     return streamers
 
+# Streamers sharing a drop-box give the same reward, so claiming one should
+# claim the whole team - returns just {name} if it can't find a team for them
+def get_teammates(streamers, name):
+    for s in streamers:
+        if s[0] == name:
+            team_id = s[3]
+            return {s2[0] for s2 in streamers if s2[3] == team_id}
+    return {name}
+
 # Check if some drops are completed
 def get_completed_streamers():
     url = 'https://www.twitch.tv/drops/inventory'
@@ -240,13 +251,13 @@ def render_dashboard(streamers, completed, in_progress, watching, claimed, confi
                 badge_class, badge_text = badge_by_status[status]
                 classes = " ".join(c for c in (group_class, "team-start" if i == 0 else "") if c)
                 rows.append(
-                    f'<tr class="{classes}" data-status="{status}"><td>{html.escape(name)}</td>'
+                    f'<tr class="{classes}" data-status="{status}" data-team-id="{team_id}"><td>{html.escape(name)}</td>'
                     f'<td><a href="{html.escape(link)}" target="_blank">{html.escape(link)}</a></td>'
                     f'<td><span class="badge {badge_class}">{badge_text}</span></td>'
                     f'<td class="done-cell">'
                     f'<form method="POST" action="/claim">'
                     f'<input type="hidden" name="name" value="{html.escape(name)}">'
-                    f'<input type="checkbox" title="Mark done" onchange="this.form.submit()">'
+                    f'<input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)">'
                     f'</form></td></tr>'
                 )
     streamer_rows = "\n".join(rows) or '<tr><td colspan="4">No streamers found.</td></tr>'
@@ -276,15 +287,51 @@ def render_dashboard(streamers, completed, in_progress, watching, claimed, confi
 
     progress_html = "\n".join(progress_rows) or '<p class="muted">No drop progress yet.</p>'
 
+    # Group claimed streamers the same way as the main table - by the team/
+    # drop-box they came from - so the claimed list also shows what skin
+    # each one was for, picture included.
+    all_teams = {}
+    for name, link, status, team_id, drop_type, drop_image in streamers:
+        all_teams.setdefault(team_id, {"members": [], "drop_type": drop_type, "drop_image": drop_image})
+        all_teams[team_id]["members"].append(name)
+
+    claimed_groups = {}
+    known_claimed_names = set()
+    for team_id in sorted(all_teams):
+        team_members = all_teams[team_id]["members"]
+        known_claimed_names.update(team_members)
+        claimed_members = [n for n in team_members if n in claimed]
+        if not claimed_members:
+            continue
+        drop_type = all_teams[team_id]["drop_type"] or "Unknown Drop"
+        group = claimed_groups.setdefault(drop_type, {"image": all_teams[team_id]["drop_image"], "members": []})
+        group["members"].extend(claimed_members)
+
+    # Claimed streamers no longer on the live page (drop rotated out) still
+    # need to show up somewhere, just without a known skin/picture.
+    orphan_claimed = sorted(n for n in claimed if n not in known_claimed_names)
+    if orphan_claimed:
+        group = claimed_groups.setdefault("Unknown Drop", {"image": "", "members": []})
+        group["members"].extend(orphan_claimed)
+
     claimed_rows = []
-    for name in sorted(claimed):
-        claimed_rows.append(f'''
+    for drop_type, group in claimed_groups.items():
+        image_html = (
+            f'<img src="{html.escape(group["image"])}" alt="{html.escape(drop_type)}" class="drop-thumb">'
+            if group["image"] else ""
+        )
+        members_html = "".join(f'''
         <div class="progress-item completed">
             <span>✓ {html.escape(name)}</span>
             <form method="POST" action="/unclaim">
                 <input type="hidden" name="name" value="{html.escape(name)}">
                 <button type="submit" class="undo">Undo</button>
             </form>
+        </div>''' for name in group["members"])
+        claimed_rows.append(f'''
+        <div class="claimed-group">
+            <div class="claimed-group-header">{image_html}<span class="drop-group-title">{html.escape(drop_type)}</span></div>
+            {members_html}
         </div>''')
     claimed_html = "\n".join(claimed_rows) or '<p class="muted">Nothing claimed yet.</p>'
 
@@ -303,8 +350,10 @@ def render_dashboard(streamers, completed, in_progress, watching, claimed, confi
 <div class="container">
     <h1>Rust Twitch Drops Watcher</h1>
     <div class="nav"><a href="/" class="active">Dashboard</a><a href="/logs.html">Logs</a></div>
-    <div class="py-status"><span class="py-dot"></span>Python watcher running</div>
-    <a class="btn-open-twitch" href="https://www.twitch.tv/drops/inventory" target="_blank">Open Twitch Drops Inventory</a>
+    <div class="header-row">
+        <div class="py-status"><span class="py-dot"></span>Python watcher running</div>
+        <a class="btn-open-twitch" href="https://www.twitch.tv/drops/inventory" target="_blank">Open Twitch Drops Inventory</a>
+    </div>
     {status_html}
     <p class="muted">Last updated {updated} &middot; refreshes every {refresh_seconds}s &middot; edit config.json to change timing</p>
 
@@ -314,7 +363,10 @@ def render_dashboard(streamers, completed, in_progress, watching, claimed, confi
     </div>
 
     <div class="panel">
-        <h2>Claimed</h2>
+        <div class="panel-header">
+            <h2>Claimed</h2>
+            <form method="POST" action="/refresh-claimed"><button type="submit" class="btn-sort">Refresh from Twitch</button></form>
+        </div>
         {claimed_html}
     </div>
 
@@ -382,6 +434,65 @@ function toggleSortOnline() {{
 }}
 
 applySort();
+
+// Claim/unclaim happen against a background fetch so the row disappears
+// instantly instead of waiting on a full page reload (which used to also
+// re-fetch every drop image and felt like a big lag spike).
+function showToast(message) {{
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add("show"));
+    setTimeout(() => {{
+        toast.classList.remove("show");
+        setTimeout(() => toast.remove(), 300);
+    }}, 2500);
+}}
+
+function fadeAndRemove(el) {{
+    el.style.transition = "opacity 0.15s ease";
+    el.style.opacity = "0.3";
+    el.style.pointerEvents = "none";
+    setTimeout(() => el.remove(), 200);
+}}
+
+function submitClaimForm(form) {{
+    const action = form.getAttribute("action");
+    const nameInput = form.querySelector('input[name="name"]');
+    const name = nameInput ? nameInput.value : "";
+    const row = form.closest("tr");
+    const container = row || form.closest(".progress-item");
+
+    if (container) {{
+        fadeAndRemove(container);
+    }}
+
+    // Claiming one member auto-claims the whole team server-side, so fade
+    // out the rest of their team's rows too instead of leaving them stale.
+    if (action === "/claim" && row && row.dataset.teamId !== undefined) {{
+        document.querySelectorAll('tr[data-team-id="' + row.dataset.teamId + '"]').forEach((teamRow) => {{
+            if (teamRow !== row) fadeAndRemove(teamRow);
+        }});
+    }}
+
+    if (action === "/claim") {{
+        showToast("Claimed! The Claimed section will update shortly.");
+    }}
+
+    fetch(action, {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/x-www-form-urlencoded" }},
+        body: "name=" + encodeURIComponent(name),
+    }}).catch(() => {{}});
+}}
+
+document.querySelectorAll('form[action="/claim"], form[action="/unclaim"]').forEach((form) => {{
+    form.addEventListener("submit", (e) => {{
+        e.preventDefault();
+        submitClaimForm(form);
+    }});
+}});
 </script>
 </body>
 </html>'''
@@ -436,6 +547,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._handle_claim()
         elif self.path in ("/control/start", "/control/pause", "/control/stop"):
             self._handle_control()
+        elif self.path == "/refresh-claimed":
+            self._handle_refresh_claimed()
         else:
             self.send_response(404)
             self.end_headers()
@@ -445,23 +558,66 @@ class DashboardHandler(BaseHTTPRequestHandler):
         body = self.rfile.read(length).decode("utf-8")
         name = parse_qs(body).get("name", [""])[0]
 
-        changed = False
+        newly_claimed = []
+        removed = False
         with state_lock:
             if self.path == "/claim":
                 if name not in state["claimed"]:
-                    state["claimed"].add(name)
-                    state["session_claimed_count"] += 1
-                    changed = True
+                    for teammate in get_teammates(state["streamers"], name):
+                        if teammate not in state["claimed"]:
+                            state["claimed"].add(teammate)
+                            newly_claimed.append(teammate)
+                    state["session_claimed_count"] += len(newly_claimed)
             else:
                 if name in state["claimed"]:
                     state["claimed"].discard(name)
                     state["session_claimed_count"] = max(0, state["session_claimed_count"] - 1)
-                    changed = True
+                    removed = True
             save_claimed(state["claimed"])
 
-        if changed:
-            action = "Marked" if self.path == "/claim" else "Unmarked"
-            log_event(f"{action} {name} as claimed (manual)")
+        if newly_claimed:
+            teammates = [n for n in newly_claimed if n != name]
+            if teammates:
+                log_event(f"Marked {name} as claimed (manual) — auto-claimed teammate(s): {', '.join(sorted(teammates))}")
+            else:
+                log_event(f"Marked {name} as claimed (manual)")
+        elif removed:
+            log_event(f"Unmarked {name} as claimed")
+
+        self.send_response(303)
+        self.send_header("Location", "/")
+        self.end_headers()
+
+    def _handle_refresh_claimed(self):
+        try:
+            completed, in_progress, auto_claimed = get_completed_streamers()
+            error = None
+        except Exception as e:
+            completed, in_progress, auto_claimed = set(), {}, set()
+            error = e
+
+        with state_lock:
+            newly = auto_claimed - state["claimed"]
+            if newly:
+                state["claimed"] |= newly
+                state["session_claimed_count"] += len(newly)
+                save_claimed(state["claimed"])
+            state["completed"] = set(completed)
+            state["in_progress"] = dict(in_progress)
+            streamers = list(state["streamers"])
+            config = dict(state["config"])
+            claimed = set(state["claimed"])
+            watching = state["watching"]
+
+        if error is not None:
+            log_event(f"ERROR refreshing claimed list from Twitch inventory: {error}")
+        elif newly:
+            for name in sorted(newly):
+                log_event(f"Twitch inventory shows {name} as claimed")
+        else:
+            log_event("Refreshed claimed list from Twitch inventory — no changes")
+
+        render_dashboard(streamers, completed, in_progress, watching, claimed, config)
 
         self.send_response(303)
         self.send_header("Location", "/")
@@ -498,16 +654,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 # Scrapes, auto-opens eligible streams, and keeps the dashboard updated
-def poll_loop():
-    while True:
-        with state_lock:
-            run_state = state["run_state"]
-
-        if run_state != "running":
-            control_event.wait(timeout=1)
-            control_event.clear()
-            continue
-
+# Runs one scrape+render cycle and returns how long to sleep before the next
+def run_poll_cycle():
         config = load_config()
 
         try:
@@ -534,6 +682,8 @@ def poll_loop():
             prev_completed = set(state["completed"])
             state["completed"] = set(completed)
             state["in_progress"] = dict(in_progress)
+            state["streamers"] = list(streamers)
+            state["config"] = dict(config)
 
         for name in sorted(newly_auto_claimed):
             log_event(f"Twitch auto-claimed the drop for {name}")
@@ -567,7 +717,20 @@ def poll_loop():
 
         render_dashboard(streamers, completed, in_progress, watching, claimed, config)
 
-        sleep_seconds = 60 if watching else config["recheck_interval_minutes"] * 60
+        return 60 if watching else config["recheck_interval_minutes"] * 60
+
+# Repeatedly runs poll cycles, respecting the Start/Pause/Stop controls
+def poll_loop():
+    while True:
+        with state_lock:
+            run_state = state["run_state"]
+
+        if run_state != "running":
+            control_event.wait(timeout=1)
+            control_event.clear()
+            continue
+
+        sleep_seconds = run_poll_cycle()
         control_event.wait(timeout=sleep_seconds)
         control_event.clear()
 
@@ -613,6 +776,10 @@ def main():
 
     url = f"http://127.0.0.1:{PORT}/"
     log_event(f"Dashboard server listening at {url}")
+
+    log_event("Running initial refresh before opening dashboard...")
+    run_poll_cycle()
+
     webbrowser.open(url)
     log_event("Watcher started")
 

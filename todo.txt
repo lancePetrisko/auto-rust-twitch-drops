@@ -1,5 +1,28 @@
 
 
-Ship it with a bat file for windows to open the shit automatically
+(LATER) Ship it with a bat file for windows to open the shit automatically
 
+Make the refresh buttons green instead of blue same with order btn
 
+Fix the "Refresh from Twitch" inventory checker - it doesn't actually
+detect claimed drops correctly yet
+
+Why it's broken: checked inventory-example.html (saved copy of
+twitch.tv/drops/inventory) - it's just Twitch's empty pre-JS shell,
+<div id="root"> has nothing in it. No ScCardDropStatusText/
+ScCardDropCampaignTitleText anywhere, no embedded JSON state either.
+Twitch renders that page entirely client-side with React, so
+requests.get() + BeautifulSoup can never see the real content no
+matter what selectors we use. On top of that, drop-claim status is
+tied to your logged-in session, and requests.get() sends no auth
+cookies, so even server-rendered HTML would only show the logged-out
+page.
+
+Real fix needs either a headless browser (Playwright/Selenium)
+driven with a logged-in session, or Twitch's authenticated GraphQL
+API with a captured OAuth token/cookie. Plain requests scraping
+can't do it.
+
+Idea: build a browser extension instead - more invasive but can read
+the live logged-in DOM directly, no scraping/auth workaround needed.
+Also should fix the general laggy feel of the program.
