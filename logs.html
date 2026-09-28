@@ -44,6 +44,18 @@ function formatRemaining(seconds) {
 }
 
 let lastLogCount = 0;
+let remainingSeconds = 0;
+let watchingActive = false;
+
+function updateRemainingDisplay() {
+    document.getElementById("stat-remaining").textContent = formatRemaining(remainingSeconds);
+}
+
+function tickCountdown() {
+    if (!watchingActive) return;
+    remainingSeconds = Math.max(0, remainingSeconds - 1);
+    updateRemainingDisplay();
+}
 
 function renderLogs(logs) {
     const consoleEl = document.getElementById("console");
@@ -79,7 +91,9 @@ async function refresh() {
     }
 
     document.getElementById("stat-watching").textContent = data.watching || "None";
-    document.getElementById("stat-remaining").textContent = formatRemaining(data.watch_remaining_seconds);
+    watchingActive = !!data.watching;
+    remainingSeconds = data.watch_remaining_seconds;
+    updateRemainingDisplay();
     document.getElementById("stat-ready").textContent = data.ready_to_claim;
     document.getElementById("stat-progress").textContent = data.in_progress_count;
     document.getElementById("stat-claimed").textContent = data.session_claimed_count;
@@ -105,6 +119,7 @@ async function refresh() {
 
 refresh();
 setInterval(refresh, 2000);
+setInterval(tickCountdown, 1000);
 </script>
 </body>
 </html>
