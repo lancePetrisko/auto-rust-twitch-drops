@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="refresh" content="15">
 <title>Rust Twitch Drops Watcher</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -14,12 +13,12 @@
         <div class="py-status"><span class="py-dot"></span>Python watcher running</div>
         <a class="btn-open-twitch" href="https://www.twitch.tv/drops/inventory" target="_blank">Open Twitch Drops Inventory</a>
     </div>
-    <div class="status status-online">● WATCHING Foolish</div>
-    <p class="muted">Last updated 3:27:12 PM &middot; refreshes every 15s &middot; edit config.json to change timing</p>
+    <div id="dashboard-status"><div class="status status-online">● WATCHING xChocoBars</div></div>
+    <p class="muted">Last updated <span id="last-updated">1:47:15 AM</span> &middot; refreshes every 15s &middot; edit config.json to change timing</p>
 
     <div class="panel">
         <h2>Drop Progress</h2>
-        <p class="muted">No drop progress yet.</p>
+        <div id="progress-content"><p class="muted">No drop progress yet.</p></div>
     </div>
 
     <div class="panel">
@@ -27,7 +26,7 @@
             <h2>Claimed</h2>
             <form method="POST" action="/refresh-claimed"><button type="submit" class="btn-sort">Refresh from Twitch</button></form>
         </div>
-        
+        <div id="claimed-content">
         <div class="claimed-group">
             <div class="claimed-group-header"><img src="https://files.facepunch.com/lewis/2026/September/rocket-launcher.jpg" alt="Rocket Launcher" class="drop-thumb"><span class="drop-group-title">Rocket Launcher</span></div>
             
@@ -157,7 +156,7 @@
                 <button type="submit" class="undo">Undo</button>
             </form>
         </div>
-        </div>
+        </div></div>
     </div>
 
     <div class="panel">
@@ -166,25 +165,25 @@
             <button id="sort-online-btn" class="btn-sort" onclick="toggleSortOnline()">Sort: Online First</button>
         </div>
         <table class="streamer-table">
-            <tr><th>Name</th><th>Link</th><th>Status</th><th>Done</th></tr>
-            <tr class="drop-group-header"><td colspan="4"><img src="https://files.facepunch.com/lewis/2026/September/furnace.jpg" alt="Furnace" class="drop-thumb"><span class="drop-group-title">Furnace</span></td></tr>
+            <thead><tr><th>Name</th><th>Link</th><th>Status</th><th>Done</th></tr></thead>
+            <tbody id="streamer-rows"><tr class="drop-group-header"><td colspan="4"><img src="https://files.facepunch.com/lewis/2026/September/furnace.jpg" alt="Furnace" class="drop-thumb"><span class="drop-group-title">Furnace</span></td></tr>
 <tr class="team-start" data-status="OFFLINE" data-team-id="6"><td>EsfandTV</td><td><a href="https://www.twitch.tv/EsfandTV" target="_blank">https://www.twitch.tv/EsfandTV</a></td><td><span class="badge badge-offline">OFFLINE</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="EsfandTV"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr>
 <tr class="drop-group-header"><td colspan="4"><img src="https://files.facepunch.com/lewis/2026/September/wooden-door.jpg" alt="Wooden Door" class="drop-thumb"><span class="drop-group-title">Wooden Door</span></td></tr>
-<tr class="team-start" data-status="OFFLINE" data-team-id="7"><td>xChocoBars</td><td><a href="https://www.twitch.tv/xChocoBars" target="_blank">https://www.twitch.tv/xChocoBars</a></td><td><span class="badge badge-offline">OFFLINE</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="xChocoBars"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr>
+<tr class="team-start" data-status="ONLINE" data-team-id="7"><td>xChocoBars</td><td><a href="https://www.twitch.tv/xChocoBars" target="_blank">https://www.twitch.tv/xChocoBars</a></td><td><span class="badge badge-online">ONLINE</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="xChocoBars"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr>
 <tr class="drop-group-header"><td colspan="4"><img src="https://files.facepunch.com/lewis/2026/September/box1.jpg" alt="Large Wood Box" class="drop-thumb"><span class="drop-group-title">Large Wood Box</span></td></tr>
-<tr class="team-start" data-status="OFFLINE" data-team-id="8"><td>ironmouse</td><td><a href="https://www.twitch.tv/ironmouse" target="_blank">https://www.twitch.tv/ironmouse</a></td><td><span class="badge badge-offline">OFFLINE</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="ironmouse"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr>
+<tr class="team-start" data-status="ONLINE" data-team-id="8"><td>ironmouse</td><td><a href="https://www.twitch.tv/ironmouse" target="_blank">https://www.twitch.tv/ironmouse</a></td><td><span class="badge badge-online">ONLINE</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="ironmouse"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr>
 <tr class="drop-group-header"><td colspan="4"><img src="https://files.facepunch.com/lewis/2026/September/sword.jpg" alt="Salvaged Sword" class="drop-thumb"><span class="drop-group-title">Salvaged Sword</span></td></tr>
 <tr class="team-start" data-status="OFFLINE" data-team-id="9"><td>willneff</td><td><a href="https://www.twitch.tv/willneff" target="_blank">https://www.twitch.tv/willneff</a></td><td><span class="badge badge-offline">OFFLINE</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="willneff"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr>
 <tr class="drop-group-header"><td colspan="4"><img src="https://files.facepunch.com/lewis/2026/September/garage-door.jpg" alt="Garage Door" class="drop-thumb"><span class="drop-group-title">Garage Door</span></td></tr>
-<tr class="team-start" data-status="ONLINE" data-team-id="10"><td>Foolish</td><td><a href="https://www.twitch.tv/Foolish" target="_blank">https://www.twitch.tv/Foolish</a></td><td><span class="badge badge-online">ONLINE</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="Foolish"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr>
+<tr class="team-start" data-status="OFFLINE" data-team-id="10"><td>Foolish</td><td><a href="https://www.twitch.tv/Foolish" target="_blank">https://www.twitch.tv/Foolish</a></td><td><span class="badge badge-offline">OFFLINE</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="Foolish"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr>
 <tr class="drop-group-header"><td colspan="4"><img src="https://files.facepunch.com/lewis/2026/September/locker.jpg" alt="Locker" class="drop-thumb"><span class="drop-group-title">Locker</span></td></tr>
-<tr class="team-start" data-status="ONLINE" data-team-id="11"><td>TinaKitten</td><td><a href="https://www.twitch.tv/TinaKitten" target="_blank">https://www.twitch.tv/TinaKitten</a></td><td><span class="badge badge-online">ONLINE</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="TinaKitten"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr>
+<tr class="team-start" data-status="OFFLINE" data-team-id="11"><td>TinaKitten</td><td><a href="https://www.twitch.tv/TinaKitten" target="_blank">https://www.twitch.tv/TinaKitten</a></td><td><span class="badge badge-offline">OFFLINE</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="TinaKitten"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr>
 <tr class="drop-group-header"><td colspan="4"><img src="https://files.facepunch.com/lewis/2026/September/jacket.jpg" alt="Vagabond Jacket" class="drop-thumb"><span class="drop-group-title">Vagabond Jacket</span></td></tr>
-<tr class="team-group team-start" data-status="OFFLINE" data-team-id="14"><td>LEDOO</td><td><a href="https://www.twitch.tv/LEDOO" target="_blank">https://www.twitch.tv/LEDOO</a></td><td><span class="badge badge-offline">OFFLINE</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="LEDOO"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr>
-<tr class="team-group" data-status="OFFLINE" data-team-id="14"><td>FancyOrb</td><td><a href="https://www.twitch.tv/FancyOrb" target="_blank">https://www.twitch.tv/FancyOrb</a></td><td><span class="badge badge-offline">OFFLINE</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="FancyOrb"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr>
+<tr class="team-group team-start" data-status="PAIRED" data-team-id="14"><td>LEDOO</td><td><a href="https://www.twitch.tv/LEDOO" target="_blank">https://www.twitch.tv/LEDOO</a></td><td><span class="badge badge-hosted">HOSTED</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="LEDOO"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr>
+<tr class="team-group" data-status="ONLINE" data-team-id="14"><td>FancyOrb</td><td><a href="https://www.twitch.tv/FancyOrb" target="_blank">https://www.twitch.tv/FancyOrb</a></td><td><span class="badge badge-online">ONLINE</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="FancyOrb"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr>
 <tr class="drop-group-header"><td colspan="4"><img src="https://files.facepunch.com/lewis/2026/September/gloves.jpg" alt="Tactical Gloves" class="drop-thumb"><span class="drop-group-title">Tactical Gloves</span></td></tr>
-<tr class="team-group team-start" data-status="OFFLINE" data-team-id="15"><td>itsRyanHiga</td><td><a href="https://www.twitch.tv/itsRyanHiga" target="_blank">https://www.twitch.tv/itsRyanHiga</a></td><td><span class="badge badge-offline">OFFLINE</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="itsRyanHiga"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr>
-<tr class="team-group" data-status="OFFLINE" data-team-id="15"><td>Welyn</td><td><a href="https://www.twitch.tv/Welyn" target="_blank">https://www.twitch.tv/Welyn</a></td><td><span class="badge badge-offline">OFFLINE</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="Welyn"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr>
+<tr class="team-group team-start" data-status="ONLINE" data-team-id="15"><td>itsRyanHiga</td><td><a href="https://www.twitch.tv/itsRyanHiga" target="_blank">https://www.twitch.tv/itsRyanHiga</a></td><td><span class="badge badge-online">ONLINE</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="itsRyanHiga"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr>
+<tr class="team-group" data-status="PAIRED" data-team-id="15"><td>Welyn</td><td><a href="https://www.twitch.tv/Welyn" target="_blank">https://www.twitch.tv/Welyn</a></td><td><span class="badge badge-hosted">HOSTED</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="Welyn"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr></tbody>
         </table>
     </div>
 </div>
@@ -193,13 +192,11 @@ function statusPriority(s) {
     return s === "ONLINE" ? 0 : s === "PAIRED" ? 1 : 2;
 }
 
-function collectBlocks(table) {
-    const rows = Array.from(table.querySelectorAll("tr"));
-    const headerRow = rows[0];
+function collectBlocks(tbody) {
+    const rows = Array.from(tbody.querySelectorAll("tr"));
     const blocks = [];
     let current = null;
     rows.forEach((row) => {
-        if (row === headerRow) return;
         if (row.classList.contains("drop-group-header")) {
             current = { header: row, members: [] };
             blocks.push(current);
@@ -207,14 +204,14 @@ function collectBlocks(table) {
             current.members.push(row);
         }
     });
-    return { headerRow, blocks };
+    return blocks;
 }
 
 function applySort() {
-    const table = document.querySelector(".streamer-table");
-    if (!table) return;
+    const tbody = document.getElementById("streamer-rows");
+    if (!tbody) return;
     const sortOnline = localStorage.getItem("rustDropsSortOnline") === "1";
-    const { headerRow, blocks } = collectBlocks(table);
+    const blocks = collectBlocks(tbody);
     blocks.forEach((b, i) => { b.originalIndex = i; });
     const ordered = sortOnline
         ? blocks.slice().sort((a, b) => {
@@ -224,8 +221,8 @@ function applySort() {
           })
         : blocks;
     ordered.forEach((b) => {
-        table.appendChild(b.header);
-        b.members.forEach((m) => table.appendChild(m));
+        tbody.appendChild(b.header);
+        b.members.forEach((m) => tbody.appendChild(m));
     });
     const btn = document.getElementById("sort-online-btn");
     if (btn) {
@@ -239,8 +236,6 @@ function toggleSortOnline() {
     localStorage.setItem("rustDropsSortOnline", sortOnline ? "0" : "1");
     applySort();
 }
-
-applySort();
 
 // Claim/unclaim happen against a background fetch so the row disappears
 // instantly instead of waiting on a full page reload (which used to also
@@ -294,12 +289,49 @@ function submitClaimForm(form) {
     }).catch(() => {});
 }
 
-document.querySelectorAll('form[action="/claim"], form[action="/unclaim"]').forEach((form) => {
-    form.addEventListener("submit", (e) => {
-        e.preventDefault();
-        submitClaimForm(form);
+function bindClaimForms() {
+    document.querySelectorAll('form[action="/claim"], form[action="/unclaim"]').forEach((form) => {
+        form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            submitClaimForm(form);
+        });
     });
-});
+}
+
+// Polls the pre-rendered fragments instead of the old <meta refresh>, which
+// used to force a full page navigation (and a full style.css/image re-fetch)
+// every 15s just to show a percentage tick over.
+async function refreshDashboard() {
+    let data;
+    try {
+        const res = await fetch("/api/dashboard");
+        data = await res.json();
+    } catch (e) {
+        return;
+    }
+
+    const patch = (id, html) => {
+        if (html === undefined) return;
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = html;
+    };
+
+    patch("dashboard-status", data.status_html);
+    patch("progress-content", data.progress_html);
+    patch("claimed-content", data.claimed_html);
+    patch("streamer-rows", data.streamer_rows);
+
+    const updatedEl = document.getElementById("last-updated");
+    if (updatedEl && data.updated !== undefined) updatedEl.textContent = data.updated;
+
+    applySort();
+    bindClaimForms();
+}
+
+bindClaimForms();
+applySort();
+refreshDashboard();
+setInterval(refreshDashboard, 15000);
 </script>
 </body>
 </html>

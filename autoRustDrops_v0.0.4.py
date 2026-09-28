@@ -9,7 +9,7 @@ import threading
 from collections import deque
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlparse
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
@@ -20,6 +20,11 @@ LOGS_PATH = os.path.join(BASE_DIR, "logs.html")
 
 PORT = 8787
 LOG_HISTORY_LIMIT = 300
+REQUEST_TIMEOUT = 10
+
+# Reused across scrape calls so they share pooled connections instead of
+# opening a fresh TCP+TLS handshake to facepunch/twitch on every poll.
+HTTP_SESSION = requests.Session()
 
 DEFAULT_CONFIG = {
     "recheck_interval_minutes": 30,   # how long to wait before rechecking when no one is eligible/online
@@ -36,10 +41,14 @@ state = {
     "completed": set(),
     "in_progress": {},
     "streamers": [],
+    "team_by_name": {},
+    "members_by_team": {},
     "config": dict(DEFAULT_CONFIG),
     "session_claimed_count": 0,
     "log": deque(maxlen=LOG_HISTORY_LIMIT),
+    "log_seq": 0,
     "run_state": "running",  # running | paused | stopped
+    "dashboard_fragments": {},
 }
 
 # Wakes poll_loop immediately when the run state changes, instead of it
@@ -50,7 +59,8 @@ control_event = threading.Event()
 def log_event(message):
     timestamp = datetime.now().strftime("%I:%M:%S %p").lstrip("0")
     with state_lock:
-        state["log"].append({"time": timestamp, "message": message})
+        state["log_seq"] += 1
+        state["log"].append({"seq": state["log_seq"], "time": timestamp, "message": message})
     print(f"[{timestamp}] {message}")
 
 # Applies a Start / Pause / Stop request from the Logs page
@@ -80,16 +90,29 @@ def request_control(action):
     log_event(f"Watcher {verb_by_action[action]} by user")
     control_event.set()
 
-# Load user config, filling in any missing keys with defaults
+# Load user config, filling in any missing keys with defaults - cached
+# between calls so a poll cycle doesn't re-read+re-parse an unchanged file
+_config_cache = {"mtime": None, "value": None}
+
 def load_config():
-    config = dict(DEFAULT_CONFIG)
-    if os.path.exists(CONFIG_PATH):
-        with open(CONFIG_PATH) as f:
-            config.update(json.load(f))
-    else:
+    if not os.path.exists(CONFIG_PATH):
+        config = dict(DEFAULT_CONFIG)
         with open(CONFIG_PATH, "w") as f:
             json.dump(config, f, indent=4)
-    return config
+        _config_cache["mtime"] = os.path.getmtime(CONFIG_PATH)
+        _config_cache["value"] = config
+        return dict(config)
+
+    mtime = os.path.getmtime(CONFIG_PATH)
+    if _config_cache["value"] is not None and _config_cache["mtime"] == mtime:
+        return dict(_config_cache["value"])
+
+    config = dict(DEFAULT_CONFIG)
+    with open(CONFIG_PATH) as f:
+        config.update(json.load(f))
+    _config_cache["mtime"] = mtime
+    _config_cache["value"] = config
+    return dict(config)
 
 # Load the set of streamers the user has manually marked as claimed
 def load_claimed():
@@ -105,7 +128,7 @@ def save_claimed(claimed):
 # Grabs all streamer links
 def get_streamer_links():
     url = 'https://twitch.facepunch.com/#get-started'
-    response = requests.get(url)
+    response = HTTP_SESSION.get(url, timeout=REQUEST_TIMEOUT)
     soup = BeautifulSoup(response.text, 'html.parser')
 
     streamer_cards = soup.select(".drop-box")
@@ -156,19 +179,10 @@ def get_streamer_links():
 
     return streamers
 
-# Streamers sharing a drop-box give the same reward, so claiming one should
-# claim the whole team - returns just {name} if it can't find a team for them
-def get_teammates(streamers, name):
-    for s in streamers:
-        if s[0] == name:
-            team_id = s[3]
-            return {s2[0] for s2 in streamers if s2[3] == team_id}
-    return {name}
-
 # Check if some drops are completed
 def get_completed_streamers():
     url = 'https://www.twitch.tv/drops/inventory'
-    response = requests.get(url)
+    response = HTTP_SESSION.get(url, timeout=REQUEST_TIMEOUT)
     soup = BeautifulSoup(response.text, 'html.parser')
 
     completed = set()      # 100% watched, still needs a manual claim confirm
@@ -199,6 +213,10 @@ def get_completed_streamers():
             in_progress[name] = (f"{percent}%", int(remaining))
 
     return completed, in_progress, auto_claimed
+
+# Tracks the last content actually written to dashboard.html, so unchanged
+# renders (e.g. nothing moved while paused) skip the disk write entirely
+_last_render_signature = None
 
 # Renders the dashboard to dashboard.html
 def render_dashboard(streamers, completed, in_progress, watching, claimed, config):
@@ -338,11 +356,28 @@ def render_dashboard(streamers, completed, in_progress, watching, claimed, confi
     refresh_seconds = config["page_refresh_seconds"]
     updated = datetime.now().strftime("%I:%M:%S %p").lstrip("0")
 
+    with state_lock:
+        state["dashboard_fragments"] = {
+            "status_html": status_html,
+            "progress_html": progress_html,
+            "claimed_html": claimed_html,
+            "streamer_rows": streamer_rows,
+            "updated": updated,
+        }
+
+    # The full page is only rewritten to disk when the actual content
+    # differs from last time - live tabs get updates via /api/dashboard
+    # instead, so a static (e.g. paused) state doesn't churn the disk.
+    global _last_render_signature
+    signature = (status_html, progress_html, claimed_html, streamer_rows, refresh_seconds)
+    if signature == _last_render_signature:
+        return
+    _last_render_signature = signature
+
     html_doc = f'''<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="refresh" content="{refresh_seconds}">
 <title>Rust Twitch Drops Watcher</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -354,12 +389,12 @@ def render_dashboard(streamers, completed, in_progress, watching, claimed, confi
         <div class="py-status"><span class="py-dot"></span>Python watcher running</div>
         <a class="btn-open-twitch" href="https://www.twitch.tv/drops/inventory" target="_blank">Open Twitch Drops Inventory</a>
     </div>
-    {status_html}
-    <p class="muted">Last updated {updated} &middot; refreshes every {refresh_seconds}s &middot; edit config.json to change timing</p>
+    <div id="dashboard-status">{status_html}</div>
+    <p class="muted">Last updated <span id="last-updated">{updated}</span> &middot; refreshes every {refresh_seconds}s &middot; edit config.json to change timing</p>
 
     <div class="panel">
         <h2>Drop Progress</h2>
-        {progress_html}
+        <div id="progress-content">{progress_html}</div>
     </div>
 
     <div class="panel">
@@ -367,7 +402,7 @@ def render_dashboard(streamers, completed, in_progress, watching, claimed, confi
             <h2>Claimed</h2>
             <form method="POST" action="/refresh-claimed"><button type="submit" class="btn-sort">Refresh from Twitch</button></form>
         </div>
-        {claimed_html}
+        <div id="claimed-content">{claimed_html}</div>
     </div>
 
     <div class="panel">
@@ -376,8 +411,8 @@ def render_dashboard(streamers, completed, in_progress, watching, claimed, confi
             <button id="sort-online-btn" class="btn-sort" onclick="toggleSortOnline()">Sort: Online First</button>
         </div>
         <table class="streamer-table">
-            <tr><th>Name</th><th>Link</th><th>Status</th><th>Done</th></tr>
-            {streamer_rows}
+            <thead><tr><th>Name</th><th>Link</th><th>Status</th><th>Done</th></tr></thead>
+            <tbody id="streamer-rows">{streamer_rows}</tbody>
         </table>
     </div>
 </div>
@@ -386,13 +421,11 @@ function statusPriority(s) {{
     return s === "ONLINE" ? 0 : s === "PAIRED" ? 1 : 2;
 }}
 
-function collectBlocks(table) {{
-    const rows = Array.from(table.querySelectorAll("tr"));
-    const headerRow = rows[0];
+function collectBlocks(tbody) {{
+    const rows = Array.from(tbody.querySelectorAll("tr"));
     const blocks = [];
     let current = null;
     rows.forEach((row) => {{
-        if (row === headerRow) return;
         if (row.classList.contains("drop-group-header")) {{
             current = {{ header: row, members: [] }};
             blocks.push(current);
@@ -400,14 +433,14 @@ function collectBlocks(table) {{
             current.members.push(row);
         }}
     }});
-    return {{ headerRow, blocks }};
+    return blocks;
 }}
 
 function applySort() {{
-    const table = document.querySelector(".streamer-table");
-    if (!table) return;
+    const tbody = document.getElementById("streamer-rows");
+    if (!tbody) return;
     const sortOnline = localStorage.getItem("rustDropsSortOnline") === "1";
-    const {{ headerRow, blocks }} = collectBlocks(table);
+    const blocks = collectBlocks(tbody);
     blocks.forEach((b, i) => {{ b.originalIndex = i; }});
     const ordered = sortOnline
         ? blocks.slice().sort((a, b) => {{
@@ -417,8 +450,8 @@ function applySort() {{
           }})
         : blocks;
     ordered.forEach((b) => {{
-        table.appendChild(b.header);
-        b.members.forEach((m) => table.appendChild(m));
+        tbody.appendChild(b.header);
+        b.members.forEach((m) => tbody.appendChild(m));
     }});
     const btn = document.getElementById("sort-online-btn");
     if (btn) {{
@@ -432,8 +465,6 @@ function toggleSortOnline() {{
     localStorage.setItem("rustDropsSortOnline", sortOnline ? "0" : "1");
     applySort();
 }}
-
-applySort();
 
 // Claim/unclaim happen against a background fetch so the row disappears
 // instantly instead of waiting on a full page reload (which used to also
@@ -487,12 +518,49 @@ function submitClaimForm(form) {{
     }}).catch(() => {{}});
 }}
 
-document.querySelectorAll('form[action="/claim"], form[action="/unclaim"]').forEach((form) => {{
-    form.addEventListener("submit", (e) => {{
-        e.preventDefault();
-        submitClaimForm(form);
+function bindClaimForms() {{
+    document.querySelectorAll('form[action="/claim"], form[action="/unclaim"]').forEach((form) => {{
+        form.addEventListener("submit", (e) => {{
+            e.preventDefault();
+            submitClaimForm(form);
+        }});
     }});
-}});
+}}
+
+// Polls the pre-rendered fragments instead of the old <meta refresh>, which
+// used to force a full page navigation (and a full style.css/image re-fetch)
+// every {refresh_seconds}s just to show a percentage tick over.
+async function refreshDashboard() {{
+    let data;
+    try {{
+        const res = await fetch("/api/dashboard");
+        data = await res.json();
+    }} catch (e) {{
+        return;
+    }}
+
+    const patch = (id, html) => {{
+        if (html === undefined) return;
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = html;
+    }};
+
+    patch("dashboard-status", data.status_html);
+    patch("progress-content", data.progress_html);
+    patch("claimed-content", data.claimed_html);
+    patch("streamer-rows", data.streamer_rows);
+
+    const updatedEl = document.getElementById("last-updated");
+    if (updatedEl && data.updated !== undefined) updatedEl.textContent = data.updated;
+
+    applySort();
+    bindClaimForms();
+}}
+
+bindClaimForms();
+applySort();
+refreshDashboard();
+setInterval(refreshDashboard, {refresh_seconds * 1000});
 </script>
 </body>
 </html>'''
@@ -501,7 +569,7 @@ document.querySelectorAll('form[action="/claim"], form[action="/unclaim"]').forE
         f.write(html_doc)
 
 # Builds the JSON payload the Logs page polls for live stats + console lines
-def build_state_snapshot():
+def build_state_snapshot(since_seq=None):
     with state_lock:
         watching = state["watching"]
         watch_until = state["watch_until"]
@@ -510,12 +578,17 @@ def build_state_snapshot():
         in_progress_count = len(state["in_progress"])
         session_claimed_count = state["session_claimed_count"]
         run_state = state["run_state"]
-        logs = list(state["log"])
+        log_seq = state["log_seq"]
+        if since_seq is None:
+            logs = list(state["log"])
+        else:
+            logs = [entry for entry in state["log"] if entry["seq"] > since_seq]
 
     remaining = max(0, int(watch_until - time.time())) if watching else 0
 
     return {
         "logs": logs,
+        "log_seq": log_seq,
         "watching": watching,
         "watch_remaining_seconds": remaining,
         "ready_to_claim": len(completed - claimed),
@@ -524,20 +597,37 @@ def build_state_snapshot():
         "run_state": run_state,
     }
 
+# Returns the last-rendered dashboard fragments the dashboard page polls,
+# so /api/dashboard can serve them without re-running any render logic.
+def build_dashboard_fragments():
+    with state_lock:
+        return dict(state["dashboard_fragments"])
+
+# In-memory cache for static files (style.css, logs.html) keyed by path,
+# holding (mtime, bytes) so unchanged files aren't re-read from disk per request
+_static_file_cache = {}
+
 # Serves the dashboard and handles Claim / Undo form submissions
 class DashboardHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass  # keep the console quiet
 
     def do_GET(self):
-        if self.path in ("/", "/dashboard.html"):
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        if path in ("/", "/dashboard.html"):
             self._serve_file(DASHBOARD_PATH, "text/html")
-        elif self.path == "/logs.html":
-            self._serve_file(LOGS_PATH, "text/html")
-        elif self.path == "/style.css":
-            self._serve_file(STYLE_PATH, "text/css")
-        elif self.path == "/api/state":
-            self._serve_json(build_state_snapshot())
+        elif path == "/logs.html":
+            self._serve_file(LOGS_PATH, "text/html", cache_seconds=30)
+        elif path == "/style.css":
+            self._serve_file(STYLE_PATH, "text/css", cache_seconds=30)
+        elif path == "/api/state":
+            since_raw = parse_qs(parsed.query).get("since", [None])[0]
+            since_seq = int(since_raw) if since_raw not in (None, "") else None
+            self._serve_json(build_state_snapshot(since_seq))
+        elif path == "/api/dashboard":
+            self._serve_json(build_dashboard_fragments())
         else:
             self.send_response(404)
             self.end_headers()
@@ -563,7 +653,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         with state_lock:
             if self.path == "/claim":
                 if name not in state["claimed"]:
-                    for teammate in get_teammates(state["streamers"], name):
+                    team_id = state["team_by_name"].get(name)
+                    teammates = state["members_by_team"].get(team_id, {name}) if team_id is not None else {name}
+                    for teammate in teammates:
                         if teammate not in state["claimed"]:
                             state["claimed"].add(teammate)
                             newly_claimed.append(teammate)
@@ -631,17 +723,27 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_header("Location", self.headers.get("Referer", "/logs.html"))
         self.end_headers()
 
-    def _serve_file(self, path, content_type):
+    def _serve_file(self, path, content_type, cache_seconds=None):
         try:
-            with open(path, "rb") as f:
-                data = f.read()
+            mtime = os.path.getmtime(path)
         except FileNotFoundError:
             self.send_response(404)
             self.end_headers()
             return
+
+        cached = _static_file_cache.get(path)
+        if cached is not None and cached[0] == mtime:
+            data = cached[1]
+        else:
+            with open(path, "rb") as f:
+                data = f.read()
+            _static_file_cache[path] = (mtime, data)
+
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
+        if cache_seconds:
+            self.send_header("Cache-Control", f"max-age={cache_seconds}")
         self.end_headers()
         self.wfile.write(data)
 
@@ -670,6 +772,15 @@ def run_poll_cycle():
             log_event(f"ERROR fetching drop inventory from twitch: {e}")
             completed, in_progress, auto_claimed = set(), {}, set()
 
+        # Precomputed once per cycle so claim requests can do O(1) lookups
+        # instead of scanning the full streamer list while holding the lock.
+        team_by_name = {}
+        members_by_team = {}
+        for s in streamers:
+            name_, team_id_ = s[0], s[3]
+            team_by_name[name_] = team_id_
+            members_by_team.setdefault(team_id_, set()).add(name_)
+
         with state_lock:
             newly_auto_claimed = auto_claimed - state["claimed"]
             if newly_auto_claimed:
@@ -683,6 +794,8 @@ def run_poll_cycle():
             state["completed"] = set(completed)
             state["in_progress"] = dict(in_progress)
             state["streamers"] = list(streamers)
+            state["team_by_name"] = team_by_name
+            state["members_by_team"] = members_by_team
             state["config"] = dict(config)
 
         for name in sorted(newly_auto_claimed):
@@ -692,9 +805,17 @@ def run_poll_cycle():
         for name in sorted(newly_completed):
             log_event(f"{name}'s drop hit 100% — ready to claim")
 
-        if watching and time.time() >= watch_until:
-            log_event(f"Done watching {watching} — watch window elapsed")
-            watching = None
+        if watching:
+            # They may have gone offline (or gotten claimed elsewhere) well
+            # before the watch timer runs out - drop the "watching" state
+            # immediately instead of showing a stale status until it expires.
+            current_status = next((s[2] for s in streamers if s[0] == watching), None)
+            if current_status != "ONLINE" or watching in completed or watching in claimed:
+                log_event(f"{watching} is no longer eligible (offline or claimed) — not watching anyone")
+                watching = None
+            elif time.time() >= watch_until:
+                log_event(f"Done watching {watching} — watch window elapsed")
+                watching = None
 
         if not watching:
             switched = False
@@ -726,7 +847,9 @@ def poll_loop():
             run_state = state["run_state"]
 
         if run_state != "running":
-            control_event.wait(timeout=1)
+            # No timeout - request_control() already wakes us via
+            # control_event.set() on any real Start/Pause/Stop transition.
+            control_event.wait()
             control_event.clear()
             continue
 

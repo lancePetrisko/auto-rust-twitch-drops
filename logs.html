@@ -43,7 +43,7 @@ function formatRemaining(seconds) {
     return m + "m " + String(s).padStart(2, "0") + "s";
 }
 
-let lastLogCount = 0;
+let lastSeq = null;
 let remainingSeconds = 0;
 let watchingActive = false;
 
@@ -57,11 +57,12 @@ function tickCountdown() {
     updateRemainingDisplay();
 }
 
-function renderLogs(logs) {
+// Appends only the new entries the server sent instead of tearing down and
+// rebuilding the whole console every poll (which used to be up to 300 lines).
+function appendLogs(logs, forceScroll) {
     const consoleEl = document.getElementById("console");
-    const atBottom = consoleEl.scrollTop + consoleEl.clientHeight >= consoleEl.scrollHeight - 10;
+    const atBottom = forceScroll || consoleEl.scrollTop + consoleEl.clientHeight >= consoleEl.scrollHeight - 10;
 
-    consoleEl.innerHTML = "";
     logs.forEach((entry) => {
         const line = document.createElement("div");
         line.className = "console-line";
@@ -75,16 +76,16 @@ function renderLogs(logs) {
         consoleEl.appendChild(line);
     });
 
-    if (atBottom || lastLogCount === 0) {
+    if (atBottom) {
         consoleEl.scrollTop = consoleEl.scrollHeight;
     }
-    lastLogCount = logs.length;
 }
 
 async function refresh() {
     let data;
     try {
-        const res = await fetch("/api/state");
+        const url = lastSeq === null ? "/api/state" : "/api/state?since=" + lastSeq;
+        const res = await fetch(url);
         data = await res.json();
     } catch (e) {
         return;
@@ -112,9 +113,10 @@ async function refresh() {
         btn.classList.toggle("active", isCurrent);
     });
 
-    if (data.logs.length !== lastLogCount) {
-        renderLogs(data.logs);
+    if (data.logs.length > 0) {
+        appendLogs(data.logs, lastSeq === null);
     }
+    lastSeq = data.log_seq;
 }
 
 refresh();
