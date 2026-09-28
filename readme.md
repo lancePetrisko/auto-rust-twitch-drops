@@ -1,11 +1,11 @@
-# 🟣 Twitch Rust Drops Watcher
-⚠️ DISCLAIMER [ CURRENTLY NOT WORKING ]
+# Twitch Rust Drops Watcher
+DISCLAIMER [ CURRENTLY NOT WORKING ]
 
-Automatically track and manage Twitch streamers eligible for Rust drops — opens eligible live streams in your browser, estimates remaining drop watch time, and rotates through streamers until all drops are complete.
+Automatically track and manage Twitch streamers eligible for Rust drops opens eligible live streams in your browser, estimates remaining drop watch time, and rotates through streamers until all drops are complete.
 
 ---
 
-## 🎯 Features
+## Features
 
 - Scrapes [twitch.facepunch.com](https://twitch.facepunch.com) to find current Rust drop streamers
 - Detects which streamers are live, offline, or already completed
@@ -18,9 +18,9 @@ Automatically track and manage Twitch streamers eligible for Rust drops — open
 
 ---
 
-## 🚀 How to Use
+##  How to Use
 
-### 📦 Run with Python
+### Run with Python
 
 #### 🔹 1. Install Python 3.11.x (I use 3.11.9)  
 Download from: https://www.python.org/downloads/
@@ -37,7 +37,7 @@ autoRustDrops_x.x.x.py
 
 ---
 
-⚠️ DISCLAIMER
+DISCLAIMER
 
 This project is a personal automation tool designed to help users manage Twitch Drops progress more easily.
 
