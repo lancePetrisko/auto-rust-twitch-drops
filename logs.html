@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Rust Twitch Drops Watcher — Logs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+    <h1>Rust Twitch Drops Watcher</h1>
+    <div class="nav"><a href="/">Dashboard</a><a href="/logs.html" class="active">Logs</a></div>
+
+    <div class="panel controls-panel">
+        <div class="controls-status">
+            <span class="stat-label">Watcher Status</span>
+            <span class="stat-value" id="stat-run-state">—</span>
+        </div>
+        <div class="controls-buttons">
+            <form method="POST" action="/control/start"><button type="submit" id="btn-start" class="btn-control btn-start">Start</button></form>
+            <form method="POST" action="/control/pause"><button type="submit" id="btn-pause" class="btn-control btn-pause">Pause</button></form>
+            <form method="POST" action="/control/stop"><button type="submit" id="btn-stop" class="btn-control btn-stop">Stop</button></form>
+        </div>
+    </div>
+
+    <div class="panel stats-panel">
+        <div class="stat"><span class="stat-label">Currently Watching</span><span class="stat-value" id="stat-watching">—</span></div>
+        <div class="stat"><span class="stat-label">Time Remaining</span><span class="stat-value" id="stat-remaining">—</span></div>
+        <div class="stat"><span class="stat-label">Ready To Claim</span><span class="stat-value" id="stat-ready">0</span></div>
+        <div class="stat"><span class="stat-label">In Progress</span><span class="stat-value" id="stat-progress">0</span></div>
+        <div class="stat"><span class="stat-label">Claimed This Session</span><span class="stat-value" id="stat-claimed">0</span></div>
+    </div>
+
+    <div class="panel">
+        <h2>Console</h2>
+        <div id="console" class="console"></div>
+    </div>
+</div>
+<script>
+function formatRemaining(seconds) {
+    if (!seconds || seconds <= 0) return "—";
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return m + "m " + String(s).padStart(2, "0") + "s";
+}
+
+let lastLogCount = 0;
+
+function renderLogs(logs) {
+    const consoleEl = document.getElementById("console");
+    const atBottom = consoleEl.scrollTop + consoleEl.clientHeight >= consoleEl.scrollHeight - 10;
+
+    consoleEl.innerHTML = "";
+    logs.forEach((entry) => {
+        const line = document.createElement("div");
+        line.className = "console-line";
+
+        const time = document.createElement("span");
+        time.className = "console-time";
+        time.textContent = "[" + entry.time + "]";
+
+        line.appendChild(time);
+        line.appendChild(document.createTextNode(" " + entry.message));
+        consoleEl.appendChild(line);
+    });
+
+    if (atBottom || lastLogCount === 0) {
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+    lastLogCount = logs.length;
+}
+
+async function refresh() {
+    let data;
+    try {
+        const res = await fetch("/api/state");
+        data = await res.json();
+    } catch (e) {
+        return;
+    }
+
+    document.getElementById("stat-watching").textContent = data.watching || "None";
+    document.getElementById("stat-remaining").textContent = formatRemaining(data.watch_remaining_seconds);
+    document.getElementById("stat-ready").textContent = data.ready_to_claim;
+    document.getElementById("stat-progress").textContent = data.in_progress_count;
+    document.getElementById("stat-claimed").textContent = data.session_claimed_count;
+
+    const runState = data.run_state || "running";
+    const stateEl = document.getElementById("stat-run-state");
+    stateEl.textContent = runState.toUpperCase();
+    stateEl.className = "stat-value run-state-" + runState;
+
+    ["start", "pause", "stop"].forEach((action) => {
+        const btn = document.getElementById("btn-" + action);
+        const isCurrent = (action === "start" && runState === "running")
+            || (action === "pause" && runState === "paused")
+            || (action === "stop" && runState === "stopped");
+        btn.disabled = isCurrent;
+        btn.classList.toggle("active", isCurrent);
+    });
+
+    if (data.logs.length !== lastLogCount) {
+        renderLogs(data.logs);
+    }
+}
+
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>
