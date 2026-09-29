@@ -76,6 +76,9 @@ state = {
     "log_seq": 0,
     "run_state": "running",  # running | paused | stopped
     "dashboard_fragments": {},
+    "opened_links": set(),   # stream links the watcher opened this session - the extension closes their tabs once done
+    "tabs_opened": 0,
+    "tabs_closed": 0,
 }
 
 # Wakes poll_loop immediately when the run state changes, instead of it
@@ -714,6 +717,8 @@ def build_state_snapshot(since_seq=None):
         completed = set(state["completed"])
         in_progress_count = len(state["in_progress"])
         session_claimed_count = state["session_claimed_count"]
+        tabs_opened = state["tabs_opened"]
+        tabs_closed = state["tabs_closed"]
         run_state = state["run_state"]
         log_seq = state["log_seq"]
         if since_seq is None:
@@ -731,8 +736,20 @@ def build_state_snapshot(since_seq=None):
         "ready_to_claim": len(completed - claimed),
         "in_progress_count": in_progress_count,
         "session_claimed_count": session_claimed_count,
+        "tabs_opened": tabs_opened,
+        "tabs_closed": tabs_closed,
         "run_state": run_state,
     }
+
+# Tells the extension which stream tab to keep and which opened ones are done
+def build_tab_snapshot():
+    with state_lock:
+        watching = state["watching"]
+        watching_link = next((s[1] for s in state["streamers"] if s[0] == watching), None) if watching else None
+        return {
+            "watching": watching_link,
+            "opened": sorted(state["opened_links"]),
+        }
 
 # Returns the last-rendered dashboard fragments the dashboard page polls,
 # so /api/dashboard can serve them without re-running any render logic.
@@ -765,6 +782,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._serve_json(build_state_snapshot(since_seq))
         elif path == "/api/dashboard":
             self._serve_json(build_dashboard_fragments())
+        elif path == "/api/tabs":
+            self._serve_json(build_tab_snapshot())
         else:
             self.send_response(404)
             self.end_headers()
@@ -778,6 +797,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._handle_refresh_claimed()
         elif self.path == "/api/twitch-status":
             self._handle_twitch_status()
+        elif self.path == "/api/tabs-closed":
+            self._handle_tabs_closed()
         else:
             self.send_response(404)
             self.end_headers()
@@ -864,6 +885,33 @@ class DashboardHandler(BaseHTTPRequestHandler):
         # waiting out its sleep (up to recheck_interval_minutes)
         if apply_twitch_payload() or first:
             control_event.set()
+
+        self.send_response(204)
+        self.end_headers()
+
+    # The extension reports which leftover stream tabs it closed
+    def _handle_tabs_closed(self):
+        if not self.headers.get("Origin", "").startswith("chrome-extension://"):
+            self.send_response(403)
+            self.end_headers()
+            return
+
+        length = int(self.headers.get("Content-Length", 0))
+        try:
+            closed = json.loads(self.rfile.read(length).decode("utf-8")).get("channels", [])
+        except (ValueError, AttributeError):
+            self.send_response(400)
+            self.end_headers()
+            return
+
+        if closed:
+            with state_lock:
+                state["tabs_closed"] += len(closed)
+                opened, total_closed = state["tabs_opened"], state["tabs_closed"]
+            log_event(
+                f"Closed {len(closed)} finished stream tab(s): {', '.join(closed)} "
+                f"(tabs this session: {opened} opened, {total_closed} closed)"
+            )
 
         self.send_response(204)
         self.end_headers()
@@ -974,6 +1022,11 @@ def run_poll_cycle():
                     minutes = in_progress[name][1] if name in in_progress else config["no_progress_wait_minutes"]
                     log_event(f"Switching to {name} — watching for {minutes} min ({link})")
                     webbrowser.open(link)
+                    with state_lock:
+                        state["opened_links"].add(link)
+                        state["tabs_opened"] += 1
+                        opened, closed = state["tabs_opened"], state["tabs_closed"]
+                    log_event(f"Opened stream tab for {name} (tabs this session: {opened} opened, {closed} closed)")
                     watching = name
                     watch_until = time.time() + minutes * 60
                     switched = True

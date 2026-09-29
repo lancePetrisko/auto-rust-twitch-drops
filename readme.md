@@ -42,6 +42,7 @@ Twitch only shows your drop progress to your logged-in browser, so a small exten
 2. Turn on **Developer mode** (top right)
 3. Click **Load unpacked** and pick the `extension` folder from this project
 4. Keep a tab open on https://www.twitch.tv/drops/inventory (the dashboard's "Open Twitch Drops Inventory" button opens it). The extension reloads it every 5 minutes to pick up new progress.
+5. The extension also closes each stream tab once the watcher moves on from that streamer (checked every 30 seconds), so tabs don't pile up on long runs. The logs show how many tabs were opened and closed. After updating, click **Reload** on the extension in `chrome://extensions`.
 
 The dashboard shows "Twitch synced" once data is arriving. Streams aren't opened until the first sync, so already-claimed drops aren't watched again.
 
