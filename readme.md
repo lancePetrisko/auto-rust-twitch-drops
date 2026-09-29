@@ -14,7 +14,6 @@ Automatically track and manage Twitch streamers eligible for Rust drops opens el
 - Automatically opens streamers with uncompleted drops in your default browser
 - Automatically rotates to the next eligible streamer after a drop completes
 - Waits 30 minutes and retries if no eligible streamer is online
-- Simple command interface: `open` or `exit`
 
 ---
 
