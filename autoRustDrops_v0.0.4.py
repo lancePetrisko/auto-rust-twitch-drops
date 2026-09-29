@@ -288,6 +288,16 @@ def match_twitch_payload(payload, streamers, drop_types, config):
             for name in names:
                 in_progress[name] = (f"{percent}%", remaining)
 
+    # Teammates on one facepunch card share a reward, so watching any online
+    # teammate advances the same drop - give them the same progress entry.
+    members_by_team = {}
+    for name, _link, _status, team_id, _drop_type, _image in streamers:
+        members_by_team.setdefault(team_id, []).append(name)
+    team_of = {s[0]: s[3] for s in streamers}
+    for name, progress in list(in_progress.items()):
+        for teammate in members_by_team.get(team_of.get(name), []):
+            in_progress.setdefault(teammate, progress)
+
     max_age = config["claimed_max_age_days"]
     for drop in payload.get("claimed", []):
         age = _claimed_age_days(drop.get("age", ""))
@@ -956,6 +966,33 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+# Picks who to watch: drops already in progress first (fewest minutes left
+# wins, so a 98% drop gets finished before a fresh one is started), then
+# unstarted drops in facepunch page order. Returns (name, link, minutes) or None.
+def pick_best_streamer(streamers, completed, claimed, in_progress, config):
+    best, best_key = None, None
+    for index, (name, link, status, _team_id, _drop_type, _image) in enumerate(streamers):
+        if status != "ONLINE" or name in completed or name in claimed:
+            continue
+        if name in in_progress:
+            minutes = in_progress[name][1]
+            key = (0, minutes, index)
+        else:
+            minutes = config["no_progress_wait_minutes"]
+            key = (1, 0, index)
+        if best_key is None or key < best_key:
+            best, best_key = (name, link, minutes), key
+    return best
+
+# Opens a streamer's tab and records it for the extension's tab cleanup
+def _open_stream(name, link):
+    webbrowser.open(link)
+    with state_lock:
+        state["opened_links"].add(link)
+        state["tabs_opened"] += 1
+        opened, closed = state["tabs_opened"], state["tabs_closed"]
+    log_event(f"Opened stream tab for {name} (tabs this session: {opened} opened, {closed} closed)")
+
 # Scrapes, auto-opens eligible streams, and keeps the dashboard updated
 # Runs one scrape+render cycle and returns how long to sleep before the next
 def run_poll_cycle():
@@ -1015,23 +1052,28 @@ def run_poll_cycle():
 
         # Without inventory data every drop looks unclaimed, so hold off
         # opening streams until the extension's first snapshot arrives.
-        if not watching and payload is not None:
-            switched = False
-            for name, link, status, _team_id, _drop_type, _drop_image in streamers:
-                if status == "ONLINE" and name not in completed and name not in claimed:
-                    minutes = in_progress[name][1] if name in in_progress else config["no_progress_wait_minutes"]
-                    log_event(f"Switching to {name} — watching for {minutes} min ({link})")
-                    webbrowser.open(link)
-                    with state_lock:
-                        state["opened_links"].add(link)
-                        state["tabs_opened"] += 1
-                        opened, closed = state["tabs_opened"], state["tabs_closed"]
-                    log_event(f"Opened stream tab for {name} (tabs this session: {opened} opened, {closed} closed)")
+        if payload is not None:
+            best = pick_best_streamer(streamers, completed, claimed, in_progress, config)
+            if watching:
+                # Drop a fresh drop for one that's already partway done - but
+                # never hop between two partial drops, to avoid thrashing.
+                if best and best[0] != watching and watching not in in_progress and best[0] in in_progress:
+                    name, link, minutes = best
+                    log_event(
+                        f"Switching from {watching} to {name} — {name}'s drop is at "
+                        f"{in_progress[name][0]} ({minutes} min left) ({link})"
+                    )
+                    _open_stream(name, link)
                     watching = name
                     watch_until = time.time() + minutes * 60
-                    switched = True
-                    break
-            if not switched:
+            elif best:
+                name, link, minutes = best
+                progress = f"{in_progress[name][0]} done, " if name in in_progress else ""
+                log_event(f"Switching to {name} — {progress}watching for {minutes} min ({link})")
+                _open_stream(name, link)
+                watching = name
+                watch_until = time.time() + minutes * 60
+            else:
                 log_event("No eligible streamers online — waiting to recheck")
 
         with state_lock:
