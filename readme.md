@@ -1,81 +1,5 @@
-<<<<<<< Updated upstream
 # Twitch Rust Drops Watcher
 DISCLAIMER IN BETA
-
-Automatically track and manage Twitch streamers eligible for Rust drops opens eligible live streams in your browser, estimates remaining drop watch time, and rotates through streamers until all drops are complete.
-
----
-
-## Features
-
-- Scrapes [twitch.facepunch.com](https://twitch.facepunch.com) to find current Rust drop streamers
-- Detects which streamers are live, offline, or already completed
-- Pulls drop progress from your [Twitch inventory](https://www.twitch.tv/drops/inventory) via a small Chrome extension
-- Estimates remaining time based on percent complete (e.g., 45% = ~66 mins left)
-- Automatically opens streamers with uncompleted drops in your default browser
-- Automatically rotates to the next eligible streamer after a drop completes
-- Waits 30 minutes and retries if no eligible streamer is online
-
----
-
-##  How to Use
-
-### Run with Python
-
-#### 1. Install Python 3.11.x (I use 3.11.9)  
-Download from: https://www.python.org/downloads/
-
-Download link to 3.11.9 https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe
-
-#### 2. Install required libraries
-Copy paste this into Command Prompt
-```bash
-pip install requests beautifulsoup4
-```
-#### 3. Download and Run Python Script
-autoRustDrops_x.x.x.py
-
-#### 4. Install the Chrome extension
-Twitch only shows your drop progress to your logged in browser, so a small extension reads it and sends it to the script.
-
-1. Open `chrome://extensions`
-2. Turn on **Developer mode** (top right)
-3. Click **Load unpacked** and pick the `extension` folder from this project
-4. Keep a tab open on https://www.twitch.tv/drops/inventory (the dashboard's "Open Twitch Drops Inventory" button opens it). The extension reloads it every 5 minutes to pick up new progress.
-5. The extension also closes each stream tab once the watcher moves on from that streamer (checked every 30 seconds), so tabs don't pile up on long runs. The logs show how many tabs were opened and closed. After updating, click **Reload** on the extension in `chrome://extensions`.
-
-The dashboard shows "Twitch synced" once data is arriving. Streams aren't opened until the first sync, so already-claimed drops aren't watched again.
-
----
-
-DISCLAIMER
-
-This project is a personal automation tool designed to help users manage Twitch Drops progress more easily.
-
-- This project is not affiliated with Twitch or Facepunch Studios in any way.
-
-- It does not simulate viewership, interact with the Twitch player, or manipulate drop systems.
-
-- It simply automates the process of opening eligible Twitch streams based on public HTML content and estimated watch time.
-
-- Use of this tool is at your own risk. Be sure to comply with Twitch’s Terms of Service and Drops Program Guidelines.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-=======
-# Twitch Rust Drops Watcher
-DISCLAIMER [ CURRENTLY NOT WORKING ]
 
 Rust Drops Watcher finds every Twitch streamer taking part in the current Rust drops campaign. It reads your real drop progress from Twitch and opens the right live stream in your browser. When a drop finishes or the streamer goes offline, it moves on to the next one. It keeps going until every drop is done.
 
@@ -176,4 +100,3 @@ This project is a personal automation tool designed to help users manage Twitch 
 2. It does not simulate viewership, interact with the Twitch player, or manipulate drop systems.
 3. It only automates opening eligible Twitch streams, based on public web pages, your own inventory and estimated watch time.
 4. Use of this tool is at your own risk. Be sure to comply with Twitch's Terms of Service and Drops Program Guidelines.
->>>>>>> Stashed changes
