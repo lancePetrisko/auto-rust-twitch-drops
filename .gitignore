@@ -2,3 +2,5 @@ claimed.json
 __pycache__/
 *.pyc
 inventory-live.html
+.venv/
+.extension_setup_done

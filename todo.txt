@@ -1,23 +1,4 @@
 
 
-(LATER) Ship it with a bat file for windows to open the shit automatically
 
 Make the refresh buttons green instead of blue same with order btn
-
-DONE (needs a live test in Chrome): Twitch inventory now comes from the
-Chrome extension in extension/ instead of requests scraping.
-- inventory.js reads the rendered inventory page, background.js posts
-  it to POST /api/twitch-status (only chrome-extension:// origins).
-- Twitch names drops by item ("Rust Isles DB"), not streamer. In-progress
-  drops name the channel directly; claimed items are matched to facepunch
-  drop names in match_drop_type(). Bad matches get fixed with
-  twitch_item_map in config.json.
-- Still need a capture of a 100%-but-unclaimed card to confirm the
-  "claimable" detection (claim button) works.
-
-NEXT: tab-close / offline signal
-- Service worker: chrome.tabs.onRemoved / onUpdated for the watched
-  streamer's tab (more reliable than pagehide in a content script).
-- Content script on twitch.tv/<name> reads Twitch's live/offline badge.
-- Both post to a new POST /api/streamer-status; on "closed"/"offline"
-  for the watched streamer, clear watching and wake the poll loop.
