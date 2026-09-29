@@ -1,5 +1,5 @@
 # Twitch Rust Drops Watcher
-DISCLAIMER [ CURRENTLY NOT WORKING ]
+DISCLAIMER IN BETA
 
 Automatically track and manage Twitch streamers eligible for Rust drops opens eligible live streams in your browser, estimates remaining drop watch time, and rotates through streamers until all drops are complete.
 
@@ -22,21 +22,21 @@ Automatically track and manage Twitch streamers eligible for Rust drops opens el
 
 ### Run with Python
 
-#### 🔹 1. Install Python 3.11.x (I use 3.11.9)  
+#### 1. Install Python 3.11.x (I use 3.11.9)  
 Download from: https://www.python.org/downloads/
 
 Download link to 3.11.9 https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe
 
-#### 🔹 2. Install required libraries
+#### 2. Install required libraries
 Copy paste this into Command Prompt
 ```bash
 pip install requests beautifulsoup4
 ```
-#### 🔹 3. Download and Run Python Script
+#### 3. Download and Run Python Script
 autoRustDrops_x.x.x.py
 
-#### 🔹 4. Install the Chrome extension
-Twitch only shows your drop progress to your logged-in browser, so a small extension reads it and sends it to the script.
+#### 4. Install the Chrome extension
+Twitch only shows your drop progress to your logged in browser, so a small extension reads it and sends it to the script.
 
 1. Open `chrome://extensions`
 2. Turn on **Developer mode** (top right)
