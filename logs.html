@@ -34,6 +34,7 @@
         <h2>Console</h2>
         <div id="console" class="console"></div>
     </div>
+    <p class="credit"><span id="app-version"></span>Developed and maintained by <a href="https://lancepetrisko.com" target="_blank" rel="noopener">Lance Petrisko</a></p>
 </div>
 <script>
 function formatRemaining(seconds) {
@@ -98,6 +99,10 @@ async function refresh() {
     document.getElementById("stat-ready").textContent = data.ready_to_claim;
     document.getElementById("stat-progress").textContent = data.in_progress_count;
     document.getElementById("stat-claimed").textContent = data.session_claimed_count;
+
+    if (data.version) {
+        document.getElementById("app-version").textContent = "v" + data.version + " \u00b7 ";
+    }
 
     const runState = data.run_state || "running";
     const stateEl = document.getElementById("stat-run-state");

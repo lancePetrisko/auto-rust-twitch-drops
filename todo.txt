@@ -1,4 +1,11 @@
+Small updates
+Add a small mention of my name, developemed
+and maintianed by Lance Petrisko with a link
+to my personal site. lancepetrisko.com
 
+Make version control, start at whatever num
+you want we can control the updates everytime a commit
+is updated. Or maybe there is a better idea
 
 
 Make the refresh buttons green instead of blue same with order btn

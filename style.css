@@ -308,7 +308,7 @@ h1 {
 
 .btn-sort {
     background: transparent;
-    color: #9fd3ff;
+    color: var(--green);
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 0.4rem 0.8rem;
@@ -318,7 +318,7 @@ h1 {
 }
 
 .btn-sort:hover {
-    border-color: #9fd3ff;
+    border-color: var(--green);
 }
 
 .btn-sort.active {
@@ -500,4 +500,16 @@ a:hover {
 .progress-fill {
     background: var(--green);
     height: 100%;
+}
+
+.credit {
+    margin-top: 1.5rem;
+    text-align: center;
+    font-size: 0.8rem;
+    font-style: italic;
+    color: #5f6b7a;
+}
+
+.credit a {
+    color: var(--green);
 }

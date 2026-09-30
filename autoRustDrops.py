@@ -18,6 +18,14 @@ CLAIMED_PATH = os.path.join(BASE_DIR, "claimed.json")
 DASHBOARD_PATH = os.path.join(BASE_DIR, "dashboard.html")
 STYLE_PATH = os.path.join(BASE_DIR, "style.css")
 LOGS_PATH = os.path.join(BASE_DIR, "logs.html")
+VERSION_PATH = os.path.join(BASE_DIR, "VERSION")
+
+# Single source of truth for the app version; bump it with bump.py.
+try:
+    with open(VERSION_PATH, "r", encoding="utf-8") as f:
+        VERSION = f.read().strip()
+except OSError:
+    VERSION = "unknown"
 
 PORT = 8787
 LOG_HISTORY_LIMIT = 300
@@ -564,6 +572,7 @@ def render_dashboard(streamers, completed, in_progress, watching, claimed, confi
             <tbody id="streamer-rows">{streamer_rows}</tbody>
         </table>
     </div>
+    <p class="credit">v{VERSION} &middot; Developed and maintained by <a href="https://lancepetrisko.com" target="_blank" rel="noopener">Lance Petrisko</a></p>
 </div>
 <script>
 function statusPriority(s) {{
@@ -749,6 +758,7 @@ def build_state_snapshot(since_seq=None):
         "tabs_opened": tabs_opened,
         "tabs_closed": tabs_closed,
         "run_state": run_state,
+        "version": VERSION,
     }
 
 # Tells the extension which stream tab to keep and which opened ones are done
@@ -1104,7 +1114,7 @@ def poll_loop():
 
 
 def main():
-    log_event("Starting Rust Twitch Drops Watcher...")
+    log_event(f"Starting Rust Twitch Drops Watcher v{VERSION}...")
 
     try:
         config = load_config()

@@ -11,11 +11,11 @@
     <div class="nav"><a href="/" class="active">Dashboard</a><a href="/logs.html">Logs</a></div>
     <div class="header-row">
         <div class="py-status"><span class="py-dot"></span>Python watcher running</div>
-        <div class="py-status" id="twitch-sync"><span class="py-dot"></span>Twitch synced 10:05 AM</div>
+        <div class="py-status" id="twitch-sync"><span class="py-dot py-dot-off"></span>Extension not connected</div>
         <a class="btn-open-twitch" href="https://www.twitch.tv/drops/inventory" target="_blank">Open Twitch Drops Inventory</a>
     </div>
-    <div id="dashboard-status"><div class="status status-offline">● NO ELIGIBLE STREAMERS</div></div>
-    <p class="muted">Last updated <span id="last-updated">10:05:48 AM</span> &middot; refreshes every 15s &middot; edit config.json to change timing</p>
+    <div id="dashboard-status"><div class="status status-online">● STREAMERS ONLINE</div></div>
+    <p class="muted">Last updated <span id="last-updated">10:35:22 AM</span> &middot; refreshes every 15s &middot; edit config.json to change timing</p>
 
     <div class="panel">
         <h2>Drop Progress</h2>
@@ -29,12 +29,12 @@
         </div>
         <div id="claimed-content">
         <div class="claimed-group">
-            <div class="claimed-group-header"><span class="drop-group-title">Unknown Drop</span></div>
+            <div class="claimed-group-header"><img src="https://files.facepunch.com/lewis/2026/September/rocket-launcher.jpg" alt="Rocket Launcher" class="drop-thumb"><span class="drop-group-title">Rocket Launcher</span></div>
             
         <div class="progress-item completed">
-            <span>✓ Abe</span>
+            <span>✓ GEEGA</span>
             <form method="POST" action="/unclaim">
-                <input type="hidden" name="name" value="Abe">
+                <input type="hidden" name="name" value="GEEGA">
                 <button type="submit" class="undo">Undo</button>
             </form>
         </div>
@@ -45,13 +45,11 @@
                 <button type="submit" class="undo">Undo</button>
             </form>
         </div>
-        <div class="progress-item completed">
-            <span>✓ CYR</span>
-            <form method="POST" action="/unclaim">
-                <input type="hidden" name="name" value="CYR">
-                <button type="submit" class="undo">Undo</button>
-            </form>
         </div>
+
+        <div class="claimed-group">
+            <div class="claimed-group-header"><img src="https://files.facepunch.com/lewis/2026/September/semi-auto.jpg" alt="Semi-automatic Rifle" class="drop-thumb"><span class="drop-group-title">Semi-automatic Rifle</span></div>
+            
         <div class="progress-item completed">
             <span>✓ DisguisedToast</span>
             <form method="POST" action="/unclaim">
@@ -59,17 +57,27 @@
                 <button type="submit" class="undo">Undo</button>
             </form>
         </div>
+        </div>
+
+        <div class="claimed-group">
+            <div class="claimed-group-header"><img src="https://files.facepunch.com/lewis/2026/September/dbs.jpg" alt="Double Barrel Shotgun" class="drop-thumb"><span class="drop-group-title">Double Barrel Shotgun</span></div>
+            
         <div class="progress-item completed">
-            <span>✓ GEEGA</span>
+            <span>✓ peterpark</span>
             <form method="POST" action="/unclaim">
-                <input type="hidden" name="name" value="GEEGA">
+                <input type="hidden" name="name" value="peterpark">
                 <button type="submit" class="undo">Undo</button>
             </form>
         </div>
+        </div>
+
+        <div class="claimed-group">
+            <div class="claimed-group-header"><img src="https://files.facepunch.com/lewis/2026/September/boonie-hat.jpg" alt="Boonie Hat" class="drop-thumb"><span class="drop-group-title">Boonie Hat</span></div>
+            
         <div class="progress-item completed">
-            <span>✓ Hutnik</span>
+            <span>✓ fuslie</span>
             <form method="POST" action="/unclaim">
-                <input type="hidden" name="name" value="Hutnik">
+                <input type="hidden" name="name" value="fuslie">
                 <button type="submit" class="undo">Undo</button>
             </form>
         </div>
@@ -80,52 +88,106 @@
                 <button type="submit" class="undo">Undo</button>
             </form>
         </div>
+        </div>
+
+        <div class="claimed-group">
+            <div class="claimed-group-header"><img src="https://files.facepunch.com/lewis/2026/September/backpack.jpg" alt="Small Backpack" class="drop-thumb"><span class="drop-group-title">Small Backpack</span></div>
+            
         <div class="progress-item completed">
-            <span>✓ ZChum</span>
+            <span>✓ Abe</span>
             <form method="POST" action="/unclaim">
-                <input type="hidden" name="name" value="ZChum">
+                <input type="hidden" name="name" value="Abe">
+                <button type="submit" class="undo">Undo</button>
+            </form>
+        </div>
+        </div>
+
+        <div class="claimed-group">
+            <div class="claimed-group-header"><img src="https://files.facepunch.com/lewis/2026/September/furnace.jpg" alt="Furnace" class="drop-thumb"><span class="drop-group-title">Furnace</span></div>
+            
+        <div class="progress-item completed">
+            <span>✓ EsfandTV</span>
+            <form method="POST" action="/unclaim">
+                <input type="hidden" name="name" value="EsfandTV">
                 <button type="submit" class="undo">Undo</button>
             </form>
         </div>
         <div class="progress-item completed">
-            <span>✓ abe</span>
+            <span>✓ monstera</span>
             <form method="POST" action="/unclaim">
-                <input type="hidden" name="name" value="abe">
+                <input type="hidden" name="name" value="monstera">
                 <button type="submit" class="undo">Undo</button>
             </form>
         </div>
+        </div>
+
+        <div class="claimed-group">
+            <div class="claimed-group-header"><img src="https://files.facepunch.com/lewis/2026/September/wooden-door.jpg" alt="Wooden Door" class="drop-thumb"><span class="drop-group-title">Wooden Door</span></div>
+            
         <div class="progress-item completed">
-            <span>✓ aceu</span>
+            <span>✓ xChocoBars</span>
             <form method="POST" action="/unclaim">
-                <input type="hidden" name="name" value="aceu">
+                <input type="hidden" name="name" value="xChocoBars">
                 <button type="submit" class="undo">Undo</button>
             </form>
         </div>
+        </div>
+
+        <div class="claimed-group">
+            <div class="claimed-group-header"><img src="https://files.facepunch.com/lewis/2026/September/box1.jpg" alt="Large Wood Box" class="drop-thumb"><span class="drop-group-title">Large Wood Box</span></div>
+            
         <div class="progress-item completed">
-            <span>✓ blooprint</span>
+            <span>✓ ironmouse</span>
             <form method="POST" action="/unclaim">
-                <input type="hidden" name="name" value="blooprint">
+                <input type="hidden" name="name" value="ironmouse">
                 <button type="submit" class="undo">Undo</button>
             </form>
         </div>
+        </div>
+
+        <div class="claimed-group">
+            <div class="claimed-group-header"><img src="https://files.facepunch.com/lewis/2026/September/sword.jpg" alt="Salvaged Sword" class="drop-thumb"><span class="drop-group-title">Salvaged Sword</span></div>
+            
         <div class="progress-item completed">
-            <span>✓ fuslie</span>
+            <span>✓ willneff</span>
             <form method="POST" action="/unclaim">
-                <input type="hidden" name="name" value="fuslie">
+                <input type="hidden" name="name" value="willneff">
                 <button type="submit" class="undo">Undo</button>
             </form>
         </div>
+        </div>
+
+        <div class="claimed-group">
+            <div class="claimed-group-header"><img src="https://files.facepunch.com/lewis/2026/September/garage-door.jpg" alt="Garage Door" class="drop-thumb"><span class="drop-group-title">Garage Door</span></div>
+            
         <div class="progress-item completed">
-            <span>✓ hJune</span>
+            <span>✓ Foolish</span>
             <form method="POST" action="/unclaim">
-                <input type="hidden" name="name" value="hJune">
+                <input type="hidden" name="name" value="Foolish">
                 <button type="submit" class="undo">Undo</button>
             </form>
         </div>
+        </div>
+
+        <div class="claimed-group">
+            <div class="claimed-group-header"><img src="https://files.facepunch.com/lewis/2026/September/locker.jpg" alt="Locker" class="drop-thumb"><span class="drop-group-title">Locker</span></div>
+            
         <div class="progress-item completed">
-            <span>✓ hutnik</span>
+            <span>✓ TinaKitten</span>
             <form method="POST" action="/unclaim">
-                <input type="hidden" name="name" value="hutnik">
+                <input type="hidden" name="name" value="TinaKitten">
+                <button type="submit" class="undo">Undo</button>
+            </form>
+        </div>
+        </div>
+
+        <div class="claimed-group">
+            <div class="claimed-group-header"><img src="https://files.facepunch.com/lewis/2026/September/facemask.jpg" alt="Metal Facemask" class="drop-thumb"><span class="drop-group-title">Metal Facemask</span></div>
+            
+        <div class="progress-item completed">
+            <span>✓ CYR</span>
+            <form method="POST" action="/unclaim">
+                <input type="hidden" name="name" value="CYR">
                 <button type="submit" class="undo">Undo</button>
             </form>
         </div>
@@ -136,31 +198,60 @@
                 <button type="submit" class="undo">Undo</button>
             </form>
         </div>
+        </div>
+
+        <div class="claimed-group">
+            <div class="claimed-group-header"><img src="https://files.facepunch.com/lewis/2026/September/chest-plate.jpg" alt="Metal Chestplate" class="drop-thumb"><span class="drop-group-title">Metal Chestplate</span></div>
+            
         <div class="progress-item completed">
-            <span>✓ peterpark</span>
+            <span>✓ aceu</span>
             <form method="POST" action="/unclaim">
-                <input type="hidden" name="name" value="peterpark">
+                <input type="hidden" name="name" value="aceu">
                 <button type="submit" class="undo">Undo</button>
             </form>
         </div>
         <div class="progress-item completed">
-            <span>✓ xChocoBars</span>
+            <span>✓ ZChum</span>
             <form method="POST" action="/unclaim">
-                <input type="hidden" name="name" value="xChocoBars">
+                <input type="hidden" name="name" value="ZChum">
+                <button type="submit" class="undo">Undo</button>
+            </form>
+        </div>
+        </div>
+
+        <div class="claimed-group">
+            <div class="claimed-group-header"><img src="https://files.facepunch.com/lewis/2026/September/jacket.jpg" alt="Vagabond Jacket" class="drop-thumb"><span class="drop-group-title">Vagabond Jacket</span></div>
+            
+        <div class="progress-item completed">
+            <span>✓ LEDOO</span>
+            <form method="POST" action="/unclaim">
+                <input type="hidden" name="name" value="LEDOO">
                 <button type="submit" class="undo">Undo</button>
             </form>
         </div>
         <div class="progress-item completed">
-            <span>✓ xchocobars</span>
+            <span>✓ FancyOrb</span>
             <form method="POST" action="/unclaim">
-                <input type="hidden" name="name" value="xchocobars">
+                <input type="hidden" name="name" value="FancyOrb">
+                <button type="submit" class="undo">Undo</button>
+            </form>
+        </div>
+        </div>
+
+        <div class="claimed-group">
+            <div class="claimed-group-header"><img src="https://files.facepunch.com/lewis/2026/September/gloves.jpg" alt="Tactical Gloves" class="drop-thumb"><span class="drop-group-title">Tactical Gloves</span></div>
+            
+        <div class="progress-item completed">
+            <span>✓ itsRyanHiga</span>
+            <form method="POST" action="/unclaim">
+                <input type="hidden" name="name" value="itsRyanHiga">
                 <button type="submit" class="undo">Undo</button>
             </form>
         </div>
         <div class="progress-item completed">
-            <span>✓ zchum</span>
+            <span>✓ Welyn</span>
             <form method="POST" action="/unclaim">
-                <input type="hidden" name="name" value="zchum">
+                <input type="hidden" name="name" value="Welyn">
                 <button type="submit" class="undo">Undo</button>
             </form>
         </div>
@@ -174,9 +265,12 @@
         </div>
         <table class="streamer-table">
             <thead><tr><th>Name</th><th>Link</th><th>Status</th><th>Done</th></tr></thead>
-            <tbody id="streamer-rows"><tr><td colspan="4">No streamers found.</td></tr></tbody>
+            <tbody id="streamer-rows"><tr class="drop-group-header"><td colspan="4"><img src="https://files.facepunch.com/lewis/2026/September/ak.jpg" alt="Assault Rifle" class="drop-thumb"><span class="drop-group-title">Assault Rifle</span></td></tr>
+<tr class="team-group team-start" data-status="PAIRED" data-team-id="1"><td>hJune</td><td><a href="https://www.twitch.tv/hJune" target="_blank">https://www.twitch.tv/hJune</a></td><td><span class="badge badge-hosted">HOSTED</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="hJune"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr>
+<tr class="team-group" data-status="ONLINE" data-team-id="1"><td>Hutnik</td><td><a href="https://www.twitch.tv/Hutnik" target="_blank">https://www.twitch.tv/Hutnik</a></td><td><span class="badge badge-online">ONLINE</span></td><td class="done-cell"><form method="POST" action="/claim"><input type="hidden" name="name" value="Hutnik"><input type="checkbox" title="Mark done" onchange="submitClaimForm(this.form)"></form></td></tr></tbody>
         </table>
     </div>
+    <p class="credit">Developed and maintained by <a href="https://lancepetrisko.com" target="_blank" rel="noopener">Lance Petrisko</a></p>
 </div>
 <script>
 function statusPriority(s) {

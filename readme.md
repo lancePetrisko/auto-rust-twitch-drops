@@ -22,7 +22,7 @@ Rust Drops Watcher finds every Twitch streamer taking part in the current Rust d
 
 The program is made of three parts that work together.
 
-**The Python script** (`autoRustDrops_v0.0.4.py`) does the main work. Each cycle it downloads the facepunch drops page, works out which streamers are live and which reward each one gives, and combines that with your Twitch progress. It then decides who to watch and opens that stream. While it is watching someone, it checks again every minute. When nobody is eligible it waits for the recheck interval. It also runs a small web server on your own computer (port 8787, reachable only from your machine) that serves the dashboard and logs pages.
+**The Python script** (`autoRustDrops.py`) does the main work. Each cycle it downloads the facepunch drops page, works out which streamers are live and which reward each one gives, and combines that with your Twitch progress. It then decides who to watch and opens that stream. While it is watching someone, it checks again every minute. When nobody is eligible it waits for the recheck interval. It also runs a small web server on your own computer (port 8787, reachable only from your machine) that serves the dashboard and logs pages.
 
 **The Chrome extension** (`extension` folder, named "Rust Drops Bridge") connects your browser to the script. Twitch only shows drop progress to your logged in browser, so the script cannot read it directly. The extension reads your Twitch inventory page and sends that data to the script. It reloads the inventory tab every 5 minutes to pick up new progress. Every 30 seconds it asks the script which streams are finished and closes those tabs. The script only accepts data from a Chrome extension, so no website can send it fake data.
 
@@ -67,7 +67,7 @@ pip install requests beautifulsoup4
 After updating the project, click **Reload** on the extension in `chrome://extensions`.
 
 #### 4. Run the script
-Run `autoRustDrops_v0.0.4.py`. It opens the dashboard in your browser once the first check is done.
+Run `autoRustDrops.py`. It opens the dashboard in your browser once the first check is done.
 
 #### 5. Keep the Twitch inventory open
 Keep a tab open on https://www.twitch.tv/drops/inventory while the watcher runs. The dashboard's "Open Twitch Drops Inventory" button opens it for you.
@@ -85,12 +85,18 @@ The script creates `config.json` the first time it runs. You can edit it while t
 ## Files
 
 1. `start.bat`: the Windows launcher.
-2. `autoRustDrops_v0.0.4.py`: the watcher.
+2. `autoRustDrops.py`: the watcher.
 3. `extension`: the Chrome extension.
 4. `config.json`: your settings.
 5. `claimed.json`: streamers whose drops you have claimed.
 6. `dashboard.html`, `logs.html`, `style.css`: the web pages the watcher serves.
 7. `requirements.txt`: the Python libraries the watcher needs.
+8. `VERSION`: the current app version, shown at the bottom of the dashboard and logs pages.
+9. `bump.py`: raises the version for a new release.
+
+## Versioning
+
+The version follows `MAJOR.MINOR.PATCH`. To release, commit your changes, then run `python bump.py patch` for fixes, `python bump.py minor` for new features, or `python bump.py major` for big changes. It updates `VERSION`, commits it, and tags the commit (for example `v0.1.1`). Push with `git push && git push --tags`.
 
 ## Disclaimer
 

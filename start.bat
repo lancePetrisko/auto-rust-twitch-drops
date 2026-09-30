@@ -90,10 +90,9 @@ type nul > ".extension_setup_done"
 echo.
 
 :run
-set "SCRIPT="
-for /f "delims=" %%F in ('dir /b /o-n "autoRustDrops_v*.py" 2^>nul') do if not defined SCRIPT set "SCRIPT=%%F"
-if not defined SCRIPT (
-    echo ERROR: Could not find autoRustDrops_v*.py next to this file.
+set "SCRIPT=autoRustDrops.py"
+if not exist "%SCRIPT%" (
+    echo ERROR: Could not find autoRustDrops.py next to this file.
     goto :fail
 )
 
