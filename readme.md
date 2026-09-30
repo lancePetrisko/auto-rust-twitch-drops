@@ -1,4 +1,8 @@
-## How to Use
+## Auto Rust Twitch Drops
+
+<p align="center">
+  <img src="rust-twitch-drops.png" alt="Landing page of Auto Rust Twitch Drops" width="800">
+</p>
 
 ### Windows quick start (no Python knowledge needed)
 
